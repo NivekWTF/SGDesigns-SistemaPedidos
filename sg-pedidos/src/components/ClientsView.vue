@@ -5,11 +5,11 @@
         <h1 class="page-title">Clientes</h1>
         <p class="page-sub">Gestiona tus clientes</p>
       </div>
-      <div class="header-actions">
+        <div class="header-actions">
         <div class="search">
           <input v-model="searchTerm" placeholder="Buscar por nombre, correo..." />
         </div>
-        <button type="button" class="btn-primary" @click="scrollToForm">+ Add Cliente</button>
+        <button type="button" class="btn-primary" @click="openNewClient">+ Add Cliente</button>
       </div>
     </header>
 
@@ -33,33 +33,8 @@
     </section>
 
     <!-- FORMULARIO -->
-    <section class="mt-4" ref="createForm">
-      <h2>{{ editandoId ? 'Editar cliente' : 'Nuevo cliente' }}</h2>
-
-      <form @submit.prevent="handleSubmit">
-        <div>
-          <label>Nombre</label>
-          <input v-model="form.nombre" required />
-        </div>
-
-        <div>
-          <label>Teléfono</label>
-          <input v-model="form.telefono" />
-        </div>
-
-        <div>
-          <label>Correo</label>
-          <input v-model="form.correo" type="email" />
-        </div>
-
-        <button type="submit">
-          {{ editandoId ? 'Guardar cambios' : 'Crear cliente' }}
-        </button>
-        <button v-if="editandoId" type="button" @click="cancelarEdicion">
-          Cancelar
-        </button>
-      </form>
-    </section>
+    <!-- form moved to modal -->
+    <NewClientForm v-if="showNewClient" @close="showNewClient = false" @created="onCreatedClient" />
 
     <!-- LISTADO -->
     <section class="mt-8 list-section">
@@ -70,14 +45,14 @@
 
       <div v-else class="orders-table">
         <div class="orders-row header">
-          <div>Nombre</div>
+          <div @click="setSort('nombre')" style="cursor:pointer">Nombre</div>
           <div>Teléfono</div>
-          <div>Correo</div>
-          <div>Fecha</div>
+          <div @click="setSort('correo')" style="cursor:pointer">Correo</div>
+          <div @click="setSort('fecha')" style="cursor:pointer">Fecha</div>
           <div>Acciones</div>
         </div>
 
-        <div v-for="c in filteredClientes" :key="c.id" class="orders-row">
+        <div v-for="c in paginatedClientes" :key="c.id" class="orders-row">
           <div>{{ c.nombre }}</div>
           <div>{{ c.telefono || '-' }}</div>
           <div>{{ c.correo || '-' }}</div>
@@ -85,6 +60,20 @@
           <div class="actions">
             <button class="btn-delete" @click="editar(c)">Editar</button>
             <button class="btn-delete" @click="borrar(c.id)">Eliminar</button>
+          </div>
+        </div>
+        <div class="pagination" style="display:flex;gap:8px;align-items:center;justify-content:flex-end;padding:12px">
+          <div>
+            <button @click="prevPage" :disabled="page===1">Anterior</button>
+            <button @click="nextPage" :disabled="page>=totalPages">Siguiente</button>
+          </div>
+          <div> Página {{ page }} / {{ totalPages }} </div>
+          <div>
+            <select v-model.number="pageSize">
+              <option :value="5">5</option>
+              <option :value="10">10</option>
+              <option :value="20">20</option>
+            </select>
           </div>
         </div>
       </div>
@@ -96,6 +85,7 @@
 import { onMounted, reactive, ref, computed } from 'vue'
 import { useClientes } from '../composables/useClientes'
 import { useFormat } from '../composables/useFormat'
+import NewClientForm from './NewClientForm.vue'
 
 const {
   clientes,
@@ -122,14 +112,57 @@ const filteredClientes = computed(() => {
   return clientes.value.filter(c => (c.nombre || '').toLowerCase().includes(q) || (c.correo || '').toLowerCase().includes(q))
 })
 
+// Sorting & Pagination
+const page = ref(1)
+const pageSize = ref(10)
+const sortBy = ref<'nombre'|'correo'|'fecha'>('nombre')
+const sortDir = ref<'asc'|'desc'>('asc')
+
+function setSort(column: typeof sortBy.value) {
+  if (sortBy.value === column) {
+    sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    sortBy.value = column
+    sortDir.value = 'asc'
+  }
+}
+
+const sortedClientes = computed(() => {
+  const list = [...filteredClientes.value]
+  list.sort((a,b) => {
+    let va: any = ''
+    let vb: any = ''
+    if (sortBy.value === 'nombre') { va = (a.nombre||'').toLowerCase(); vb = (b.nombre||'').toLowerCase() }
+    if (sortBy.value === 'correo') { va = (a.correo||'').toLowerCase(); vb = (b.correo||'').toLowerCase() }
+    if (sortBy.value === 'fecha') { va = a.created_at || ''; vb = b.created_at || '' }
+    if (va < vb) return sortDir.value === 'asc' ? -1 : 1
+    if (va > vb) return sortDir.value === 'asc' ? 1 : -1
+    return 0
+  })
+  return list
+})
+
+const totalPages = computed(() => Math.max(1, Math.ceil(sortedClientes.value.length / pageSize.value)))
+const paginatedClientes = computed(() => {
+  const start = (page.value - 1) * pageSize.value
+  return sortedClientes.value.slice(start, start + pageSize.value)
+})
+
+function prevPage(){ if(page.value > 1) page.value-- }
+function nextPage(){ if(page.value < totalPages.value) page.value++ }
+
 const phoneCount = computed(() => clientes.value.filter(c => c.telefono).length)
 const emailCount = computed(() => clientes.value.filter(c => c.correo).length)
 
-const createForm = ref<HTMLElement | null>(null)
+// createForm/scroll helper removed; creation happens on modal
 
-function scrollToForm() {
-  const el = createForm.value as HTMLElement | null
-  if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ behavior: 'smooth' })
+const showNewClient = ref(false)
+
+function openNewClient(){ showNewClient.value = true }
+
+async function onCreatedClient(){
+  showNewClient.value = false
+  await fetchClientes()
 }
 
 onMounted(() => {

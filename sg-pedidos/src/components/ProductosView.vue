@@ -9,7 +9,7 @@
         <div class="search">
           <input v-model="searchTerm" placeholder="Buscar por nombre..." />
         </div>
-        <button type="button" class="btn-primary" @click="scrollToForm">+ Add Producto</button>
+        <button type="button" class="btn-primary" @click="openNewProduct">+ Add Producto</button>
       </div>
     </header>
 
@@ -32,47 +32,8 @@
       </div>
     </section>
 
-    <!-- FORMULARIO -->
-    <section class="mt-4" ref="createForm">
-      <h2>{{ editandoId ? 'Editar producto' : 'Nuevo producto' }}</h2>
-      <h2>{{ editandoId ? 'Editar producto' : 'Nuevo producto' }}</h2>
-
-      <form @submit.prevent="handleSubmit">
-        <div>
-          <label>Nombre</label>
-          <input v-model="form.nombre" required />
-        </div>
-
-        <div>
-          <label>Descripción</label>
-          <input v-model="form.descripcion" />
-        </div>
-
-        <div>
-          <label>Unidad</label>
-          <input v-model="form.unidad" placeholder="pz, m2, etc." />
-        </div>
-
-        <div>
-          <label>Precio base</label>
-          <input v-model.number="form.precio_base" type="number" min="0" step="0.01" />
-        </div>
-
-        <div>
-          <label>
-            <input type="checkbox" v-model="form.activo" />
-            Activo
-          </label>
-        </div>
-
-        <button type="submit">
-          {{ editandoId ? 'Guardar cambios' : 'Crear producto' }}
-        </button>
-        <button v-if="editandoId" type="button" @click="cancelarEdicion">
-          Cancelar
-        </button>
-      </form>
-    </section>
+    <!-- form moved to modal -->
+    <NewProductForm v-if="showNewProduct" @close="showNewProduct = false" @created="onCreatedProduct" />
 
     <!-- LISTADO -->
     <section class="mt-8 list-section">
@@ -83,14 +44,14 @@
 
       <div v-else class="orders-table">
         <div class="orders-row header">
-          <div>Nombre</div>
+          <div @click="setSort('nombre')" style="cursor:pointer">Nombre</div>
           <div>Unidad</div>
-          <div>Precio base</div>
+          <div @click="setSort('precio')" style="cursor:pointer">Precio base</div>
           <div>Activo</div>
           <div>Acciones</div>
         </div>
 
-        <div v-for="p in filteredProductos" :key="p.id" class="orders-row">
+        <div v-for="p in paginatedProductos" :key="p.id" class="orders-row">
           <div>{{ p.nombre }}</div>
           <div>{{ p.unidad || '-' }}</div>
           <div>${{ p.precio_base }}</div>
@@ -98,6 +59,21 @@
           <div class="actions">
             <button class="btn-delete" @click="editar(p)">Editar</button>
             <button class="btn-delete" @click="borrar(p.id)">Eliminar</button>
+          </div>
+        </div>
+
+        <div class="pagination" style="display:flex;gap:8px;align-items:center;justify-content:flex-end;padding:12px">
+          <div>
+            <button @click="prevPage" :disabled="page===1">Anterior</button>
+            <button @click="nextPage" :disabled="page>=totalPages">Siguiente</button>
+          </div>
+          <div> Página {{ page }} / {{ totalPages }} </div>
+          <div>
+            <select v-model.number="pageSize">
+              <option :value="5">5</option>
+              <option :value="10">10</option>
+              <option :value="20">20</option>
+            </select>
           </div>
         </div>
       </div>
@@ -108,6 +84,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, computed } from 'vue'
 import { useProductos } from '../composables/useProductos'
+import NewProductForm from './NewProductForm.vue'
 
 const {
   productos,
@@ -136,14 +113,56 @@ const filteredProductos = computed(() => {
   return productos.value.filter(p => (p.nombre || '').toLowerCase().includes(q))
 })
 
+// Sorting & Pagination
+const page = ref(1)
+const pageSize = ref(10)
+const sortBy = ref<'nombre'|'precio'>('nombre')
+const sortDir = ref<'asc'|'desc'>('asc')
+
+function setSort(column: typeof sortBy.value) {
+  if (sortBy.value === column) {
+    sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    sortBy.value = column
+    sortDir.value = 'asc'
+  }
+}
+
+const sortedProductos = computed(() => {
+  const list = [...filteredProductos.value]
+  list.sort((a,b) => {
+    let va: any = ''
+    let vb: any = ''
+    if (sortBy.value === 'nombre') { va = (a.nombre||'').toLowerCase(); vb = (b.nombre||'').toLowerCase() }
+    if (sortBy.value === 'precio') { va = a.precio_base || 0; vb = b.precio_base || 0 }
+    if (va < vb) return sortDir.value === 'asc' ? -1 : 1
+    if (va > vb) return sortDir.value === 'asc' ? 1 : -1
+    return 0
+  })
+  return list
+})
+
+const totalPages = computed(() => Math.max(1, Math.ceil(sortedProductos.value.length / pageSize.value)))
+const paginatedProductos = computed(() => {
+  const start = (page.value - 1) * pageSize.value
+  return sortedProductos.value.slice(start, start + pageSize.value)
+})
+
+function prevPage(){ if(page.value > 1) page.value-- }
+function nextPage(){ if(page.value < totalPages.value) page.value++ }
+
 const activosCount = computed(() => productos.value.filter(p => p.activo).length)
 const inactivosCount = computed(() => productos.value.filter(p => !p.activo).length)
 
-const createForm = ref<HTMLElement | null>(null)
+// creation moved to modal
 
-function scrollToForm() {
-  const el = createForm.value as HTMLElement | null
-  if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ behavior: 'smooth' })
+const showNewProduct = ref(false)
+
+function openNewProduct(){ showNewProduct.value = true }
+
+async function onCreatedProduct(){
+  showNewProduct.value = false
+  await fetchProductos()
 }
 
 onMounted(() => {

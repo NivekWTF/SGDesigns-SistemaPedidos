@@ -35,8 +35,8 @@
       </div>
     </section>
 
-    <!-- New order modal rendered when Add Order is clicked -->
-    <NewOrderForm v-if="showNewOrder" @close="showNewOrder = false" @created="onNewCreated" />
+    <!-- New order wizard modal rendered when Add Order is clicked -->
+    <NewOrderWizard v-if="showNewOrder" @close="showNewOrder = false" @created="onNewCreated" />
 
     <section class="mt-8 list-section">
       <h2>Listado de pedidos</h2>
@@ -89,7 +89,7 @@ import { usePedidos } from '../composables/usePedidos'
 import { useFormat } from '../composables/useFormat'
 import { useProductos } from '../composables/useProductos'
 import { useClientes } from '../composables/useClientes'
-import NewOrderForm from './NewOrderForm.vue'
+import NewOrderWizard from './NewOrderWizard.vue'
 import type { EstadoPedido, PedidoItemInput } from '../types'
 import type { Producto } from '../types'
 
