@@ -1,30 +1,32 @@
 <script setup lang="ts">
-import HelloWorld from './components/HelloWorld.vue'
 </script>
 
 <template>
-  <div>
-    <a href="https://vite.dev" target="_blank">
-      <img src="/vite.svg" class="logo" alt="Vite logo" />
-    </a>
-    <a href="https://vuejs.org/" target="_blank">
-      <img src="./assets/vue.svg" class="logo vue" alt="Vue logo" />
-    </a>
+  <div class="app-shell">
+    <Sidebar />
+
+    <div class="main-column">
+      <header class="topbar">
+        <!-- Navigation moved to Sidebar; topbar left intentionally blank -->
+      </header>
+
+      <main class="content">
+        <router-view />
+      </main>
+    </div>
   </div>
-  <HelloWorld msg="Vite + Vue" />
 </template>
 
+<script setup lang="ts">
+import Sidebar from './components/Sidebar.vue'
+</script>
+
 <style scoped>
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.vue:hover {
-  filter: drop-shadow(0 0 2em #42b883aa);
-}
+.app-shell{display:flex;min-height:100vh;background:#f6f7fb}
+.main-column{flex:1;display:flex;flex-direction:column}
+.topbar{border-bottom:1px solid #eee;background:#fff}
+.topbar-inner{display:flex;gap:12px;padding:12px}
+.top-link{color:#334155;text-decoration:none}
+.top-link.router-link-active{font-weight:700}
+.content{padding:16px}
 </style>

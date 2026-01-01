@@ -1,7 +1,11 @@
 {
+  "scripts": {
+    "dev": "npm --prefix ./sg-pedidos run dev"
+  },
   "dependencies": {
     "@supabase/supabase-js": "^2.86.2",
     "pinia": "^3.0.4",
+    "typescript": "^5.9.3",
     "vue-router": "^4.6.3"
   }
 }
