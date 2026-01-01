@@ -22,7 +22,7 @@ import Sidebar from './components/Sidebar.vue'
 </script>
 
 <style scoped>
-.app-shell{display:flex;min-height:100vh;background:#f6f7fb}
+.app-shell{display:flex;height:100vh;background:#f6f7fb}
 .main-column{flex:1;display:flex;flex-direction:column}
 .topbar{border-bottom:1px solid #eee;background:#fff}
 .topbar-inner{display:flex;gap:12px;padding:12px}

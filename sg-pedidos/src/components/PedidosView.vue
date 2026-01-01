@@ -18,16 +18,19 @@
         <div class="stat-num">{{ pedidos.length }}</div>
         <div class="stat-label">Total Orders</div>
       </div>
+
       <div class="stat-card">
         <div class="stat-num">{{ pendientesCount }}</div>
         <div class="stat-label">New Orders</div>
       </div>
+
       <div class="stat-card">
         <div class="stat-num">{{ completadosCount }}</div>
         <div class="stat-label">Completed Orders</div>
       </div>
+
       <div class="stat-card">
-        <div class="stat-num">{{ canceladosCount }}<<div data-v-7a7a37b1="" class="topbar-inner"><a data-v-7a7a37b1="" href="/pedidos" class="router-link-active router-link-exact-active top-link" aria-current="page">Pedidos</a><a data-v-7a7a37b1="" href="/clientes" class="top-link">Clientes</a><a data-v-7a7a37b1="" href="/productos" class="top-link">Productos</a></div>/div>
+        <div class="stat-num">{{ canceladosCount }}</div>
         <div class="stat-label">Cancelled Orders</div>
       </div>
     </section>

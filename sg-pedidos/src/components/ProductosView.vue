@@ -1,9 +1,40 @@
 <template>
-  <div class="p-4">
-    <h1>Productos</h1>
+  <div class="p-6 products-page">
+    <header class="page-header">
+      <div>
+        <h1 class="page-title">Productos</h1>
+        <p class="page-sub">Gestiona tus productos</p>
+      </div>
+      <div class="header-actions">
+        <div class="search">
+          <input v-model="searchTerm" placeholder="Buscar por nombre..." />
+        </div>
+        <button type="button" class="btn-primary" @click="scrollToForm">+ Add Producto</button>
+      </div>
+    </header>
+
+    <section class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-num">{{ productos.length }}</div>
+        <div class="stat-label">Total Productos</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num">{{ activosCount }}</div>
+        <div class="stat-label">Activos</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num">{{ inactivosCount }}</div>
+        <div class="stat-label">Inactivos</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num">{{ productos.length }}</div>
+        <div class="stat-label">Unidades</div>
+      </div>
+    </section>
 
     <!-- FORMULARIO -->
-    <section class="mt-4">
+    <section class="mt-4" ref="createForm">
+      <h2>{{ editandoId ? 'Editar producto' : 'Nuevo producto' }}</h2>
       <h2>{{ editandoId ? 'Editar producto' : 'Nuevo producto' }}</h2>
 
       <form @submit.prevent="handleSubmit">
@@ -44,41 +75,38 @@
     </section>
 
     <!-- LISTADO -->
-    <section class="mt-8">
+    <section class="mt-8 list-section">
       <h2>Listado</h2>
 
       <p v-if="loading">Cargando...</p>
       <p v-else-if="errorMsg">⚠️ {{ errorMsg }}</p>
 
-      <table v-else>
-        <thead>
-          <tr>
-            <th>Nombre</th>
-            <th>Unidad</th>
-            <th>Precio base</th>
-            <th>Activo</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="p in productos" :key="p.id">
-            <td>{{ p.nombre }}</td>
-            <td>{{ p.unidad || '-' }}</td>
-            <td>${{ p.precio_base }}</td>
-            <td>{{ p.activo ? 'Sí' : 'No' }}</td>
-            <td>
-              <button @click="editar(p)">Editar</button>
-              <button @click="borrar(p.id)">Eliminar</button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <div v-else class="orders-table">
+        <div class="orders-row header">
+          <div>Nombre</div>
+          <div>Unidad</div>
+          <div>Precio base</div>
+          <div>Activo</div>
+          <div>Acciones</div>
+        </div>
+
+        <div v-for="p in filteredProductos" :key="p.id" class="orders-row">
+          <div>{{ p.nombre }}</div>
+          <div>{{ p.unidad || '-' }}</div>
+          <div>${{ p.precio_base }}</div>
+          <div>{{ p.activo ? 'Sí' : 'No' }}</div>
+          <div class="actions">
+            <button class="btn-delete" @click="editar(p)">Editar</button>
+            <button class="btn-delete" @click="borrar(p.id)">Eliminar</button>
+          </div>
+        </div>
+      </div>
     </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref, computed } from 'vue'
 import { useProductos } from '../composables/useProductos'
 
 const {
@@ -100,6 +128,23 @@ const form = reactive({
 })
 
 const editandoId = ref<string | null>(null)
+const searchTerm = ref('')
+
+const filteredProductos = computed(() => {
+  const q = (searchTerm.value || '').toLowerCase().trim()
+  if (!q) return productos.value
+  return productos.value.filter(p => (p.nombre || '').toLowerCase().includes(q))
+})
+
+const activosCount = computed(() => productos.value.filter(p => p.activo).length)
+const inactivosCount = computed(() => productos.value.filter(p => !p.activo).length)
+
+const createForm = ref<HTMLElement | null>(null)
+
+function scrollToForm() {
+  const el = createForm.value as HTMLElement | null
+  if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ behavior: 'smooth' })
+}
 
 onMounted(() => {
   fetchProductos()
@@ -153,3 +198,21 @@ async function borrar(id: string) {
   await eliminarProducto(id)
 }
 </script>
+
+<style scoped>
+.page-header { display:flex;justify-content:space-between;align-items:center;margin-bottom:12px }
+.page-title { margin:0;font-size:1.25rem }
+.page-sub { margin:0;color:#666 }
+.header-actions { display:flex;gap:12px;align-items:center }
+.search input { padding:8px 12px;border:1px solid #ddd;border-radius:6px }
+.btn-primary { background:#059669;color:white;padding:8px 12px;border-radius:6px;border:none }
+.stats-grid { display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:12px 0 }
+.stat-card { background:#fff;border:1px solid #eee;padding:12px;border-radius:8px }
+.stat-num { font-weight:700;font-size:1.1rem }
+.stat-label { color:#666 }
+.orders-table { margin-top:12px;border-top:1px solid #eee }
+.orders-row { display:grid;grid-template-columns: 2fr 1fr 1fr 1fr 1fr;align-items:center;padding:12px;border-bottom:1px solid #f3f3f3 }
+.orders-row.header { font-weight:600;color:#444;background:#fafafa }
+.actions { display:flex;gap:8px;justify-content:flex-end }
+.btn-delete { background:#fff;border:1px solid #eee;padding:6px 8px;border-radius:6px }
+</style>
