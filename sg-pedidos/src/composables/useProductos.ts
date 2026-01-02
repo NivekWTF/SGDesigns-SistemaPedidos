@@ -41,10 +41,42 @@ async function crearProducto(input: ProductoInput) {
   }
 
   productos.value.push(data)
+
+  // If initial stock > 0, record an expense for adding stock (compra)
+  try {
+    const stockQty = (input.stock ?? 0) as number
+    if (stockQty > 0) {
+      const costo = (input.costo_material ?? 0) as number
+      const monto = costo * stockQty
+      if (monto > 0) {
+        await supabase.from('gastos').insert({
+          descripcion: `Compra inicial de stock: ${input.nombre}`,
+          monto,
+          producto_id: data.id,
+          referencia: 'stock_add',
+          meta: { qty: stockQty }
+        })
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to insert gasto for initial stock', e)
+  }
+
   return data
 }
 
 async function actualizarProducto(id: string, input: ProductoInput) {
+  // If stock is being updated, compute delta and record gasto for increase
+  // Fetch previous product to compute delta
+  const { data: prev, error: prevErr } = await supabase.from('productos').select('id, nombre, stock').eq('id', id).single()
+  if (prevErr) {
+    errorMsg.value = prevErr.message
+    throw prevErr
+  }
+
+  const prevStock = (prev as any).stock ?? 0
+  const newStock = typeof input.stock === 'number' ? input.stock : prevStock
+
   const { data, error } = await supabase
     .from('productos')
     .update(input)
@@ -59,6 +91,27 @@ async function actualizarProducto(id: string, input: ProductoInput) {
 
   const idx = productos.value.findIndex(p => p.id === id)
   if (idx !== -1) productos.value[idx] = data
+
+  // If stock increased, insert gasto for the added quantity using costo_material
+  try {
+    const delta = (newStock ?? 0) - (prevStock ?? 0)
+    if (delta > 0) {
+      const costo = ( (input.costo_material ?? (data as any).costo_material) ?? 0 ) as number
+      const monto = costo * delta
+      if (monto > 0) {
+        await supabase.from('gastos').insert({
+          descripcion: `Compra de stock: ${(data as any).nombre}`,
+          monto,
+          producto_id: id,
+          referencia: 'stock_add',
+          meta: { qty: delta }
+        })
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to insert gasto for stock update', e)
+  }
+
   return data
 }
 

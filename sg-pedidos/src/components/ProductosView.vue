@@ -5,12 +5,7 @@
         <h1 class="page-title">Productos</h1>
         <p class="page-sub">Gestiona tus productos</p>
       </div>
-      <div class="header-actions">
-        <div class="search">
-          <input v-model="searchTerm" placeholder="Buscar por nombre..." />
-        </div>
-        <button type="button" class="btn-primary" @click="openNewProduct">+ Add Producto</button>
-      </div>
+      <!-- header actions moved below the list title -->
     </header>
 
     <section class="stats-grid">
@@ -39,6 +34,13 @@
     <section class="mt-8 list-section">
       <h2>Listado</h2>
 
+      <div class="list-controls" style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;margin-bottom:8px">
+        <div class="search" style="flex:1;max-width:60%">
+          <input v-model="searchTerm" placeholder="Buscar por nombre..." />
+        </div>
+        <button type="button" class="btn-primary" @click="openNewProduct">+ Add Producto</button>
+      </div>
+
       <p v-if="loading">Cargando...</p>
       <p v-else-if="errorMsg">⚠️ {{ errorMsg }}</p>
 
@@ -47,14 +49,20 @@
           <div @click="setSort('nombre')" style="cursor:pointer">Nombre</div>
           <div>Unidad</div>
           <div @click="setSort('precio')" style="cursor:pointer">Precio base</div>
+          <div>Stock</div>
           <div>Activo</div>
           <div>Acciones</div>
         </div>
 
         <div v-for="p in paginatedProductos" :key="p.id" class="orders-row">
-          <div>{{ p.nombre }}</div>
+          <div>
+            {{ p.nombre }}
+          </div>
           <div>{{ p.unidad || '-' }}</div>
           <div>${{ p.precio_base }}</div>
+          <div>
+            <span :class="['stock-badge', stockClass(p.stock)]">{{ typeof p.stock === 'number' ? p.stock : '-' }}</span>
+          </div>
           <div>{{ p.activo ? 'Sí' : 'No' }}</div>
           <div class="actions">
             <button class="btn-delete" @click="editar(p)">Editar</button>
@@ -155,6 +163,14 @@ function nextPage(){ if(page.value < totalPages.value) page.value++ }
 const activosCount = computed(() => productos.value.filter(p => p.activo).length)
 const inactivosCount = computed(() => productos.value.filter(p => !p.activo).length)
 
+function stockClass(stock: number | null | undefined) {
+  if (typeof stock !== 'number') return 'stock-neutral'
+  if (stock === 0) return 'stock-zero'
+  if (stock <= 2) return 'stock-low'
+  if (stock > 4) return 'stock-ok'
+  return 'stock-neutral'
+}
+
 // creation moved to modal
 
 const showNewProduct = ref(false)
@@ -221,15 +237,21 @@ async function borrar(id: string) {
 .page-title { margin:0;font-size:1.25rem }
 .page-sub { margin:0;color:#666 }
 .header-actions { display:flex;gap:12px;align-items:center }
-.search input { padding:8px 12px;border:1px solid #ddd;border-radius:6px }
+.search input { width: 80vh; padding:12px 12px;border:1px solid #ddd;border-radius:6px }
 .btn-primary { background:#059669;color:white;padding:8px 12px;border-radius:6px;border:none }
 .stats-grid { display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:12px 0 }
 .stat-card { background:#fff;border:1px solid #eee;padding:12px;border-radius:8px }
 .stat-num { font-weight:700;font-size:1.1rem }
 .stat-label { color:#666 }
 .orders-table { margin-top:12px;border-top:1px solid #eee }
-.orders-row { display:grid;grid-template-columns: 2fr 1fr 1fr 1fr 1fr;align-items:center;padding:12px;border-bottom:1px solid #f3f3f3 }
+.orders-row { display:grid;grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr;align-items:center;padding:12px;border-bottom:1px solid #f3f3f3 }
 .orders-row.header { font-weight:600;color:#444;background:#fafafa }
 .actions { display:flex;gap:8px;justify-content:flex-end }
 .btn-delete { background:#fff;border:1px solid #eee;padding:6px 8px;border-radius:6px }
+.low-stock{color:#b91c1c;font-weight:700;margin-left:8px;font-size:0.85rem}
+.stock-badge{display:inline-block;padding:6px 8px;border-radius:8px;color:#fff;font-weight:700}
+.stock-zero{background:#ef4444}
+.stock-low{background:#f59e0b}
+.stock-ok{background:#16a34a}
+.stock-neutral{background:#94a3b8;color:#fff}
 </style>

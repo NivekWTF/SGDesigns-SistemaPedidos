@@ -6,6 +6,11 @@
     </div>
 
     <nav class="nav-list">
+      <router-link to="/" class="nav-item" :title="effectiveCollapsed ? 'Inicio' : ''">
+        <span class="icon">🏠</span>
+        <span v-show="!effectiveCollapsed" class="label">Inicio</span>
+      </router-link>
+
       <router-link to="/pedidos" class="nav-item" :title="effectiveCollapsed ? 'Pedidos' : ''">
         <span class="icon">📦</span>
         <span v-show="!effectiveCollapsed" class="label">Pedidos</span>
@@ -49,6 +54,8 @@ const effectiveCollapsed = computed(() => {
 function toggle() {
   collapsed.value = !collapsed.value
   localStorage.setItem(STORAGE_KEY, collapsed.value ? '1' : '0')
+  // notify other parts of the app (layout) about the change
+  try { window.dispatchEvent(new CustomEvent('sidebar-toggle', { detail: { collapsed: collapsed.value } })) } catch(e) {}
 }
 
 function onMouseEnter() {
@@ -62,7 +69,7 @@ function onMouseLeave() {
 </script>
 
 <style scoped>
-.sidebar{width:220px;background:#ffffff;border-right:1px solid #eef2f6;display:flex;flex-direction:column;padding:12px 8px;transition:width .22s cubic-bezier(.2,.9,.3,1);min-height:100vh;box-sizing:border-box;overflow:hidden}
+.sidebar{width:220px;background:#ffffff;border-right:1px solid #eef2f6;display:flex;flex-direction:column;padding:12px 8px;transition:width .22s cubic-bezier(.2,.9,.3,1), transform .22s cubic-bezier(.2,.9,.3,1);box-sizing:border-box;overflow:hidden;position:fixed;top:0;left:0;height:100vh;z-index:90}
 .sidebar.collapsed{width:72px}
 .brand-text{font-weight:700;color:#0f172a;transition:opacity .18s ease, transform .18s ease}
 .brand-text[style*="display: none"]{opacity:0}
@@ -85,4 +92,23 @@ function onMouseLeave() {
 .sidebar .nav-item .label{white-space:nowrap}
 
 /* compact styling inspired by reference: subtle labels, rounded cards, vertical list */
+
+/* Responsive: on small screens make sidebar act as overlay */
+@media (max-width: 768px) {
+  .sidebar {
+    /* hide by default on small screens using transform */
+    transform: translateX(-100%);
+    width: 220px; /* expanded width when visible */
+  }
+
+  .sidebar:not(.collapsed) {
+    /* when not collapsed show overlay */
+    transform: translateX(0);
+  }
+
+  .sidebar.collapsed {
+    /* keep hidden when collapsed on mobile */
+    transform: translateX(-100%);
+  }
+}
 </style>

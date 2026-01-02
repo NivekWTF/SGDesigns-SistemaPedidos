@@ -5,15 +5,15 @@
         <div class="modal-title">
           <div class="logo-pill">📦</div>
           <div>
-            <h3>Nuevo producto</h3>
+            <h3>{{ props.initialProduct ? 'Editar producto' : 'Nuevo producto' }}</h3>
             <div class="subtitle">Agregar un producto al catálogo</div>
           </div>
         </div>
         <button class="close" @click="close">✕</button>
       </header>
 
-      <form @submit.prevent="handleCreate" class="form-grid">
-        <div class="col">
+        <form @submit.prevent="handleCreate" class="form-grid">
+          <div class="col">
           <label class="label">Nombre</label>
           <input v-model="form.nombre" required class="input" />
 
@@ -26,11 +26,17 @@
           <label class="label">Precio base</label>
           <input v-model.number="form.precio_base" type="number" min="0" step="0.01" class="input" />
 
+          <label class="label">Costo de material</label>
+          <input v-model.number="form.costo_material" type="number" min="0" step="0.01" class="input" />
+
+          <label class="label">Stock</label>
+          <input v-model.number="form.stock" type="number" min="0" step="1" class="input" />
+
           <label class="label"><input type="checkbox" v-model="form.activo" /> Activo</label>
         </div>
 
         <div class="form-actions full-width">
-          <button type="submit" class="btn-primary">Crear producto</button>
+          <button type="submit" class="btn-primary">{{ props.initialProduct ? 'Guardar' : 'Crear producto' }}</button>
           <button type="button" class="btn-ghost" @click="close">Cancelar</button>
         </div>
       </form>
@@ -47,19 +53,29 @@ const { crearProducto, actualizarProducto } = useProductos()
 
 const props = defineProps<{ initialProduct?: any | null }>()
 
-const form = reactive({ nombre: '', descripcion: '', unidad: '', precio_base: 0, activo: true })
+const form = reactive({ nombre: '', descripcion: '', unidad: '', precio_base: 0, costo_material: 0, stock: 0, activo: true })
 
 if (props.initialProduct) {
   form.nombre = props.initialProduct.nombre || ''
   form.descripcion = props.initialProduct.descripcion || ''
   form.unidad = props.initialProduct.unidad || ''
   form.precio_base = props.initialProduct.precio_base || 0
+  form.costo_material = typeof props.initialProduct.costo_material === 'number' ? props.initialProduct.costo_material : 0
+  form.stock = typeof props.initialProduct.stock === 'number' ? props.initialProduct.stock : 0
   form.activo = !!props.initialProduct.activo
 }
 
 async function handleCreate(){
   if(!form.nombre) return
-  const payload = { nombre: form.nombre, descripcion: form.descripcion || undefined, unidad: form.unidad || undefined, precio_base: form.precio_base, activo: form.activo }
+  const payload = {
+    nombre: form.nombre,
+    descripcion: form.descripcion || undefined,
+    unidad: form.unidad || undefined,
+    precio_base: form.precio_base,
+    costo_material: typeof form.costo_material === 'number' ? form.costo_material : undefined,
+    activo: form.activo,
+    stock: typeof form.stock === 'number' ? form.stock : undefined
+  }
   if (props.initialProduct && props.initialProduct.id) {
     await actualizarProducto(props.initialProduct.id, payload)
   } else {

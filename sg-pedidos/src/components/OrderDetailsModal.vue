@@ -55,7 +55,7 @@
 <script setup lang="ts">
 import type { Pedido } from '../types'
 import type { Pago } from '../types/pagos'
-import { defineEmits, ref, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { supabase } from '../lib/supabase'
 
 const props = defineProps<{ pedido: Pedido }>()

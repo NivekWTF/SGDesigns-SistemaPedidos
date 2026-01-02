@@ -85,6 +85,11 @@
               <div class="total-amount">${{ total.toFixed(2) }}</div>
             </div>
 
+            <div class="review-rest">
+              <div>Restan:</div>
+              <div class="rest-amount">${{ Math.max(0, total - (anticipo || 0)).toFixed(2) }}</div>
+            </div>
+
             <div class="notes-row">
               <label>Notas adicionales</label>
               <textarea v-model="notas" class="textarea" placeholder="Descripción detallada del pedido, indicaciones de impresión, acabados..."></textarea>
@@ -119,7 +124,7 @@ const props = defineProps<{ initialPedido?: any | null }>()
 const step = ref(1)
 
 const { clientes, fetchClientes } = useClientes()
-const { productos, fetchProductos } = useProductos()
+const { productos, fetchProductos, actualizarProducto } = useProductos()
 const { crearPedido, actualizarPedidoCompleto } = usePedidos()
 
 const clientSearch = ref('')
@@ -178,6 +183,16 @@ function openProductList(){ /* no-op: products already visible */ }
 
 function addProductToItems(p:any){
   const qty = productQty.value[p.id] || 1
+  // prevent adding inactive products
+  if (p.activo === false) {
+    alert('No se puede agregar un producto inactivo: ' + p.nombre)
+    return
+  }
+  // if stock known, validate availability
+  if (typeof p.stock === 'number' && p.stock < qty) {
+    alert(`Stock insuficiente para ${p.nombre}. Disponible: ${p.stock}`)
+    return
+  }
   items.value.push({ producto_id: p.id, nombre: p.nombre, cantidad: qty, precio_unitario: p.precio_base })
 }
 
@@ -195,7 +210,29 @@ async function confirmOrder(){
     // edit existing pedido
     await actualizarPedidoCompleto(props.initialPedido.id, { notas: notas.value, items: payloadItems })
   } else {
-    await crearPedido({ cliente_id: selectedClient.value.id, notas: notas.value, items: payloadItems, anticipo: anticipo.value > 0 ? anticipo.value : undefined })
+    const pedido = await crearPedido({ cliente_id: selectedClient.value.id, notas: notas.value, items: payloadItems, anticipo: anticipo.value > 0 ? anticipo.value : undefined })
+    // attempt to decrement stock for products that report stock
+    try {
+      // aggregate quantities per product
+      const qtyByProduct = payloadItems.reduce((acc: Record<string, number>, it: any) => {
+        acc[it.producto_id] = (acc[it.producto_id] || 0) + it.cantidad
+        return acc
+      }, {})
+
+      for (const prodId of Object.keys(qtyByProduct)) {
+        const prod = (productos.value as any[]).find(p => p.id === prodId)
+        if (!prod || typeof prod.stock !== 'number') continue
+        const newStock = Math.max(0, (prod.stock || 0) - qtyByProduct[prodId])
+        try {
+          await actualizarProducto(prodId, { stock: newStock })
+        } catch (e) {
+          // ignore update errors (DB may not have `stock` column)
+          console.warn('No se pudo actualizar stock para', prodId, e)
+        }
+      }
+    } catch (e) {
+      console.warn('Error al procesar stock', e)
+    }
   }
 
   emit('created')
@@ -236,6 +273,8 @@ function close(){ emit('close') }
 .review-items{border:1px solid #f1f5f9;padding:12px;border-radius:8px}
 .review-item{display:flex;justify-content:space-between;padding:6px 0}
 .review-total{display:flex;justify-content:space-between;font-weight:700}
+.review-rest{display:flex;justify-content:space-between;font-weight:700;margin-top:6px}
+.rest-amount{color:#0b6f4b;font-weight:800}
 .anticipo-row{display:flex;gap:12px;align-items:center}
 .wizard-actions{display:flex;gap:8px;justify-content:flex-end}
 </style>
