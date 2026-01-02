@@ -34,7 +34,7 @@
 
     <!-- FORMULARIO -->
     <!-- form moved to modal -->
-    <NewClientForm v-if="showNewClient" @close="showNewClient = false" @created="onCreatedClient" />
+    <NewClientForm v-if="showNewClient" :initialClient="editingClient" @close="showNewClient = false; editingClient = null" @created="onCreatedClient" />
 
     <!-- LISTADO -->
     <section class="mt-8 list-section">
@@ -104,6 +104,7 @@ const form = reactive({
 })
 
 const editandoId = ref<string | null>(null)
+const editingClient = ref<any | null>(null)
 const searchTerm = ref('')
 
 const filteredClientes = computed(() => {
@@ -158,7 +159,8 @@ const emailCount = computed(() => clientes.value.filter(c => c.correo).length)
 
 const showNewClient = ref(false)
 
-function openNewClient(){ showNewClient.value = true }
+
+function openNewClient(){ editingClient.value = null; showNewClient.value = true }
 
 async function onCreatedClient(){
   showNewClient.value = false
@@ -191,10 +193,9 @@ async function handleSubmit() {
 }
 
 function editar(c: any) {
-  editandoId.value = c.id
-  form.nombre = c.nombre
-  form.telefono = c.telefono || ''
-  form.correo = c.correo || ''
+  // open modal prefilled for editing
+  editingClient.value = c
+  showNewClient.value = true
 }
 
 function cancelarEdicion() {

@@ -26,12 +26,14 @@ export interface PedidoItem {
   cantidad: number
   precio_unitario: number
   subtotal?: number | null
+  productos?: import('./productos').Producto | null
 }
 export interface Pedido {
   id: string
   folio?: string | null
   estado: EstadoPedido
   total: number
+  notas?: string | null
   created_at?: string | null
   cliente_id?: string | null
   /** relación opcional cargada desde la tabla `clientes` */

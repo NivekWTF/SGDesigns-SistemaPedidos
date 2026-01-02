@@ -36,7 +36,8 @@
     </section>
 
     <!-- New order wizard modal rendered when Add Order is clicked -->
-    <NewOrderWizard v-if="showNewOrder" @close="showNewOrder = false" @created="onNewCreated" />
+    <NewOrderWizard v-if="showNewOrder" :initialPedido="selectedPedido" :key="selectedPedido ? selectedPedido.id : 'new'" @close="showNewOrder = false; selectedPedido = null" @created="onNewCreated" />
+    <OrderDetailsModal v-if="showDetails && selectedPedido" :pedido="selectedPedido" @close="showDetails = false; selectedPedido = null" />
 
     <section class="mt-8 list-section">
       <h2>Listado de pedidos</h2>
@@ -47,6 +48,7 @@
       <div v-else class="orders-table">
         <div class="orders-row header">
           <div>Order ID</div>
+          <div>Descripción</div>
           <div>Customer</div>
           <div>Status</div>
           <div>Amount</div>
@@ -58,6 +60,8 @@
             <div class="id-main">{{ p.folio || ('#' + p.id.slice(0,8)) }}</div>
             <div class="id-sub">{{ formatDateOnly(p.created_at) }}</div>
           </div>
+
+          <div class="description">{{ formatDescription(p) }}</div>
 
           <div class="customer">{{ p.clientes?.nombre || 'Sin cliente' }}</div>
 
@@ -72,8 +76,17 @@
             <div class="menu">
               <button class="btn-menu" @click="toggleMenu(p.id)">⋯</button>
               <div v-if="openMenuId === p.id" class="menu-pop">
-                <button @click="viewDetails(p)">Details</button>
-                <button @click="editPedido(p)">Edit</button>
+                <button @click="viewDetails(p)">Detalles</button>
+                <button @click="editPedido(p)">Editar</button>
+                <div class="menu-divider"></div>
+                <div class="status-actions">
+                  <div class="status-label">Cambiar estado</div>
+                  <button class="status-btn" @click="setEstado(p, 'PENDIENTE')">PENDIENTE</button>
+                  <button class="status-btn" @click="setEstado(p, 'EN_PRODUCCION')">EN_PRODUCCION</button>
+                  <button class="status-btn" @click="setEstado(p, 'TERMINADO')">TERMINADO</button>
+                  <button class="status-btn" @click="setEstado(p, 'ENTREGADO')">ENTREGADO</button>
+                  <button class="status-btn" @click="setEstado(p, 'CANCELADO')">CANCELAR</button>
+                </div>
               </div>
             </div>
           </div>
@@ -90,6 +103,7 @@ import { useFormat } from '../composables/useFormat'
 import { useProductos } from '../composables/useProductos'
 import { useClientes } from '../composables/useClientes'
 import NewOrderWizard from './NewOrderWizard.vue'
+import OrderDetailsModal from './OrderDetailsModal.vue'
 import type { EstadoPedido, PedidoItemInput } from '../types'
 import type { Producto } from '../types'
 
@@ -126,6 +140,9 @@ const openMenuId = ref<string | null>(null)
 
 // modal state for new order
 const showNewOrder = ref(false)
+// details modal
+const showDetails = ref(false)
+const selectedPedido = ref<any | null>(null)
 
 const filteredPedidos = computed(() => {
   const q = (searchTerm.value || '').toLowerCase().trim()
@@ -146,23 +163,28 @@ function toggleMenu(id: string) {
 }
 
 function openNewOrder(){
+  selectedPedido.value = null
   showNewOrder.value = true
 }
 
 async function onNewCreated(){
   showNewOrder.value = false
+  selectedPedido.value = null
   await fetchPedidos()
 }
 
 function viewDetails(p: any) {
-  // quick details modal - replace with navigation to detail page if available
-  alert(JSON.stringify(p, null, 2))
+  selectedPedido.value = p
+  showDetails.value = true
   openMenuId.value = null
 }
 
 function editPedido(p: any) {
-  // placeholder: you can route to an edit page
-  alert('Edit pedido: ' + p.id)
+  // open the NewOrderWizard in edit mode with the pedido prefilled
+  selectedPedido.value = p
+  showNewOrder.value = true
+  // pass initialPedido prop by setting it on the component via v-if + key trick
+  // the NewOrderWizard will read from selectedPedido when mounted
   openMenuId.value = null
 }
 
@@ -194,6 +216,17 @@ function statusClass(s?: EstadoPedido) {
     default:
       return 'status-gray'
   }
+}
+
+function formatDescription(p: any) {
+  const items = p.pedido_items || []
+  if (!items || items.length === 0) return '—'
+  return items
+    .map((it: any) => {
+      const name = it.descripcion_personalizada || it.productos?.nombre || 'Item'
+      return `${it.cantidad} x ${name}`
+    })
+    .join(', ')
 }
 
 function addItem() {
@@ -253,6 +286,16 @@ async function cambiarEstado(id: string) {
   await actualizarEstadoPedido(id, nuevoEstado)
 }
 
+async function setEstado(p: any, nuevoEstado: EstadoPedido | string) {
+  try {
+    await actualizarEstadoPedido(p.id, nuevoEstado as EstadoPedido)
+    openMenuId.value = null
+  } catch (err) {
+    console.error('Error actualizando estado', err)
+    alert('No se pudo actualizar el estado')
+  }
+}
+
 async function borrar(id: string) {
   if (!confirm('¿Seguro que quieres eliminar este pedido?')) return
   await eliminarPedido(id)
@@ -271,7 +314,7 @@ async function borrar(id: string) {
 .stat-num { font-weight:700;font-size:1.1rem }
 .stat-label { color:#666 }
 .orders-table { margin-top:12px;border-top:1px solid #eee }
-.orders-row { display:grid;grid-template-columns: 2fr 2fr 1fr 1fr 1fr;align-items:center;padding:12px;border-bottom:1px solid #f3f3f3 }
+.orders-row { display:grid;grid-template-columns: 2fr 3fr 2fr 1fr 1fr 1fr;align-items:center;padding:12px;border-bottom:1px solid #f3f3f3 }
 .orders-row.header { font-weight:600;color:#444;background:#fafafa }
 .order-id .id-main { font-weight:700 }
 .id-sub { font-size:0.85rem;color:#666 }
@@ -285,7 +328,12 @@ async function borrar(id: string) {
 .actions { display:flex;gap:8px;justify-content:flex-end }
 .btn-delete { background:#fff;border:1px solid #eee;padding:6px 8px;border-radius:6px }
 .btn-menu { background:#fff;border:1px solid #eee;padding:6px 8px;border-radius:6px }
-.menu-pop { position:absolute;background:white;border:1px solid #eee;padding:8px;border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,0.06);z-index:20 }
+.menu { position: relative }
+.menu-pop { position:absolute;background:white;border:1px solid #eee;padding:8px;border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,0.06);z-index:120;right:0;left:auto;top:36px;min-width:120px;white-space:nowrap }
+.menu-divider{height:1px;background:#f1f5f9;margin:8px 0}
+.status-actions{display:flex;flex-direction:column;gap:6px}
+.status-label{font-weight:700;color:#333;font-size:0.85rem}
+.status-btn{background:transparent;border:1px solid #eef2f5;padding:6px 8px;border-radius:6px;text-align:left}
 .orders-page { background:#f6f7fb }
 .create-section { background:white;padding:12px;border-radius:8px;border:1px solid #eee;margin-bottom:16px }
 </style>

@@ -85,6 +85,11 @@
               <div class="total-amount">${{ total.toFixed(2) }}</div>
             </div>
 
+            <div class="notes-row">
+              <label>Notas adicionales</label>
+              <textarea v-model="notas" class="textarea" placeholder="Descripción detallada del pedido, indicaciones de impresión, acabados..."></textarea>
+            </div>
+
             <div class="anticipo-row">
               <label>Anticipo</label>
               <input type="number" v-model.number="anticipo" min="0" step="0.01" class="input" />
@@ -109,12 +114,13 @@ import { usePedidos } from '../composables/usePedidos'
 import NewClientForm from './NewClientForm.vue'
 
 const emit = defineEmits(['created','close'])
+const props = defineProps<{ initialPedido?: any | null }>()
 
 const step = ref(1)
 
 const { clientes, fetchClientes } = useClientes()
 const { productos, fetchProductos } = useProductos()
-const { crearPedido } = usePedidos()
+const { crearPedido, actualizarPedidoCompleto } = usePedidos()
 
 const clientSearch = ref('')
 const productSearch = ref('')
@@ -123,12 +129,29 @@ const selectedClient = ref<any | null>(null)
 const productQty = ref<Record<string, number>>({})
 const items = ref<Array<any>>([])
 const anticipo = ref(0)
+const notas = ref('')
 
 const showNewClient = ref(false)
 
 onMounted(async () => {
   await fetchClientes()
   await fetchProductos()
+
+  // if initialPedido provided, prefill fields for editing
+  if (props.initialPedido) {
+    const ped = props.initialPedido
+    selectedClient.value = ped.clientes || { id: ped.cliente_id, nombre: ped.clientes?.nombre }
+    items.value = (ped.pedido_items || []).map((it:any) => ({
+      producto_id: it.producto_id,
+      nombre: it.productos?.nombre || it.descripcion_personalizada || '',
+      cantidad: it.cantidad,
+      precio_unitario: it.precio_unitario,
+      descripcion: it.descripcion_personalizada || ''
+    }))
+    notas.value = ped.notas || ''
+    // open at review step
+    step.value = 3
+  }
 })
 
 const filteredClients = computed(() => {
@@ -168,7 +191,12 @@ async function confirmOrder(){
 
   const payloadItems = items.value.map(it=>({ producto_id: it.producto_id, cantidad: it.cantidad, precio_unitario: it.precio_unitario, descripcion_personalizada: it.descripcion || '' }))
 
-  await crearPedido({ cliente_id: selectedClient.value.id, notas: '', items: payloadItems, anticipo: anticipo.value > 0 ? anticipo.value : undefined })
+  if (props.initialPedido && props.initialPedido.id) {
+    // edit existing pedido
+    await actualizarPedidoCompleto(props.initialPedido.id, { notas: notas.value, items: payloadItems })
+  } else {
+    await crearPedido({ cliente_id: selectedClient.value.id, notas: notas.value, items: payloadItems, anticipo: anticipo.value > 0 ? anticipo.value : undefined })
+  }
 
   emit('created')
   close()
@@ -187,6 +215,7 @@ function close(){ emit('close') }
 .wizard-body{padding:16px}
 .step-actions{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px}
 .input{padding:8px 10px;border:1px solid #e6eef2;border-radius:8px}
+.textarea{min-height:84px;padding:10px;border:1px solid #e6eef2;border-radius:8px;resize:vertical}
 .cards-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
 .card{padding:12px;border-radius:8px;border:1px solid #f1f5f9;background:#fff;cursor:pointer}
 .card.selected{border-color:#0ea5a4;box-shadow:0 6px 18px rgba(14,165,164,0.08)}

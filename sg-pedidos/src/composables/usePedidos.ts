@@ -16,11 +16,12 @@ async function fetchPedidos() {
       id,
       folio,
       estado,
+      notas,
       total,
       created_at,
       cliente_id,
       clientes ( nombre ),
-      pedido_items ( id, descripcion_personalizada, cantidad, precio_unitario, subtotal )
+      pedido_items ( id, descripcion_personalizada, cantidad, precio_unitario, subtotal, productos ( nombre ) )
     `)
     .order('created_at', { ascending: false })
 
@@ -128,6 +129,45 @@ async function eliminarPedido(id: string) {
   pedidos.value = pedidos.value.filter(p => p.id !== id)
 }
 
+async function actualizarPedidoCompleto(id: string, input: { notas?: string | null; items: PedidoItem[] }) {
+  errorMsg.value = null
+
+  // 1) actualizar campos del pedido
+  const { error: errorUpdate } = await supabase
+    .from('pedidos')
+    .update({ notas: input.notas ?? null, updated_at: new Date().toISOString() })
+    .eq('id', id)
+
+  if (errorUpdate) {
+    errorMsg.value = errorUpdate.message
+    throw errorUpdate
+  }
+
+  // 2) eliminar items existentes
+  const { error: errorDelete } = await supabase.from('pedido_items').delete().eq('pedido_id', id)
+  if (errorDelete) {
+    errorMsg.value = errorDelete.message
+    throw errorDelete
+  }
+
+  // 3) insertar nuevos items
+  const itemsToInsert = input.items.map(it => ({
+    pedido_id: id,
+    producto_id: it.producto_id,
+    descripcion_personalizada: it.descripcion_personalizada ?? null,
+    cantidad: it.cantidad,
+    precio_unitario: it.precio_unitario
+  }))
+
+  const { error: errorItems } = await supabase.from('pedido_items').insert(itemsToInsert)
+  if (errorItems) {
+    errorMsg.value = errorItems.message
+    throw errorItems
+  }
+
+  await fetchPedidos()
+}
+
 export function usePedidos() {
   return {
     pedidos,
@@ -135,6 +175,7 @@ export function usePedidos() {
     errorMsg,
     fetchPedidos,
     crearPedido,
+    actualizarPedidoCompleto,
     actualizarEstadoPedido,
     eliminarPedido
   }

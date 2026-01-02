@@ -33,7 +33,7 @@
     </section>
 
     <!-- form moved to modal -->
-    <NewProductForm v-if="showNewProduct" @close="showNewProduct = false" @created="onCreatedProduct" />
+    <NewProductForm v-if="showNewProduct" :initialProduct="editingProduct" @close="showNewProduct = false; editingProduct = null" @created="onCreatedProduct" />
 
     <!-- LISTADO -->
     <section class="mt-8 list-section">
@@ -105,6 +105,7 @@ const form = reactive({
 })
 
 const editandoId = ref<string | null>(null)
+const editingProduct = ref<any | null>(null)
 const searchTerm = ref('')
 
 const filteredProductos = computed(() => {
@@ -158,7 +159,7 @@ const inactivosCount = computed(() => productos.value.filter(p => !p.activo).len
 
 const showNewProduct = ref(false)
 
-function openNewProduct(){ showNewProduct.value = true }
+function openNewProduct(){ editingProduct.value = null; showNewProduct.value = true }
 
 async function onCreatedProduct(){
   showNewProduct.value = false
@@ -199,12 +200,9 @@ async function handleSubmit() {
 }
 
 function editar(p: any) {
-  editandoId.value = p.id
-  form.nombre = p.nombre
-  form.descripcion = p.descripcion || ''
-  form.unidad = p.unidad || ''
-  form.precio_base = p.precio_base || 0
-  form.activo = p.activo
+  // open modal prefilled for editing
+  editingProduct.value = p
+  showNewProduct.value = true
 }
 
 function cancelarEdicion() {
