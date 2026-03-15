@@ -1,15 +1,18 @@
 -- RPC: create_pedido_with_stock
--- Usage: call with { cliente_id, notas, items: [{ producto_id, cantidad, precio_unitario, descripcion_personalizada }], anticipo }
+-- Usage: call with { cliente_id, notas, items: [{ producto_id, cantidad, precio_unitario, descripcion_personalizada }], anticipo, consumos }
+-- consumos (optional): [{ producto_id, cantidad }] — raw materials to decrement from stock (e.g. tabloides consumed by sobreplatos)
 -- This function will:
 -- 1) Verify stock for each product (FOR UPDATE)
--- 2) Create a pedido, insert pedido_items, decrement stock, and optionally insert pago (anticipo)
+-- 2) Verify stock for each raw material in consumos
+-- 3) Create a pedido, insert pedido_items, decrement stock, decrement material stock, and optionally insert pago (anticipo)
 -- It will raise an exception and abort the transaction if any product has insufficient stock.
 
 create or replace function public.create_pedido_with_stock(
   cliente_id uuid,
   notas text,
   items jsonb,
-  anticipo numeric default null
+  anticipo numeric default null,
+  consumos jsonb default '[]'::jsonb
 ) returns table(pedido_id uuid) as $$
 declare
   v_pedido_id uuid;
@@ -17,6 +20,7 @@ declare
   prod_id uuid;
   qty numeric;
   prod_stock numeric;
+  prod_nombre text;
 begin
   if items is null then
     raise exception 'items array required';
@@ -35,6 +39,22 @@ begin
       raise exception 'Stock insuficiente para producto % (disponible: %, requerido: %)', prod_id, prod_stock, qty;
     end if;
   end loop;
+
+  -- Check availability of raw materials (consumos)
+  if consumos is not null and jsonb_array_length(consumos) > 0 then
+    for it in select * from jsonb_array_elements(consumos)
+    loop
+      prod_id := (it->>'producto_id')::uuid;
+      qty := (it->>'cantidad')::numeric;
+      select stock, nombre into prod_stock, prod_nombre from productos where id = prod_id for update;
+      if prod_stock is null then
+        raise exception 'Material % no tiene stock registrado', coalesce(prod_nombre, prod_id::text);
+      end if;
+      if prod_stock < qty then
+        raise exception 'Stock insuficiente de material "%" (disponible: %, requerido: %)', coalesce(prod_nombre, prod_id::text), prod_stock, qty;
+      end if;
+    end loop;
+  end if;
 
   -- compute total
   insert into pedidos (cliente_id, notas, total)
@@ -60,6 +80,16 @@ begin
     set stock = stock - (it->>'cantidad')::numeric
     where id = (it->>'producto_id')::uuid;
   end loop;
+
+  -- decrement raw material stock (consumos)
+  if consumos is not null and jsonb_array_length(consumos) > 0 then
+    for it in select * from jsonb_array_elements(consumos)
+    loop
+      update productos
+      set stock = stock - (it->>'cantidad')::numeric
+      where id = (it->>'producto_id')::uuid;
+    end loop;
+  end if;
 
   -- insert anticipo payment if provided
   if anticipo is not null and anticipo > 0 then

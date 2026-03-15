@@ -34,8 +34,11 @@
         <div class="payments-block" v-if="pagos.length">
           <h4>Pagos / Anticipos</h4>
           <div v-for="pay in pagos" :key="pay.id" class="payment-row">
-            <div>{{ new Date(pay.creado_en).toLocaleString() }} • <strong>${{ pay.monto.toFixed(2) }}</strong></div>
-            <div class="pay-right">{{ pay.es_anticipo ? 'Anticipo' : (pay.metodo || 'Pago') }}</div>
+            <div>
+              {{ new Date(pay.creado_en).toLocaleString() }} • <strong>${{ pay.monto.toFixed(2) }}</strong>
+              <span v-if="pay.metodo" class="pay-method">{{ pay.metodo }}</span>
+            </div>
+            <div class="pay-right">{{ pay.es_anticipo ? 'Anticipo' : 'Pago' }}</div>
           </div>
         </div>
 
@@ -44,8 +47,44 @@
           <div class="total-amount">${{ (pedido.total || 0).toFixed(2) }}</div>
         </div>
 
-        <div class="actions-row">
-          <button class="btn-primary" @click="close">Cerrar</button>
+        <div v-if="remainingAmount > 0" class="remaining-row">
+          <div>Restante</div>
+          <div class="remaining-amount">${{ remainingAmount.toFixed(2) }}</div>
+        </div>
+
+        <div v-if="remainingAmount <= 0 && pagos.length" class="paid-badge">
+          ✅ Pagado por completo
+        </div>
+
+        <!-- Pagar por completo -->
+        <div v-if="remainingAmount > 0 && !showPayForm" class="actions-row" style="gap:8px">
+          <button class="btn-pay" @click="showPayForm = true">💳 Pagar por completo (${{ remainingAmount.toFixed(2) }})</button>
+          <button class="btn-primary" style="margin-left:auto" @click="close">Cerrar</button>
+          <button class="btn-primary" style="background:#0ea5a4" @click="reimprimirTicket">Re-imprimir Ticket</button>
+        </div>
+
+        <!-- Payment method form -->
+        <div v-if="showPayForm" class="pay-form">
+          <h4 style="margin:0 0 8px">Método de pago</h4>
+          <p style="color:#666;margin:0 0 12px;font-size:0.9rem">Monto a pagar: <strong>${{ remainingAmount.toFixed(2) }}</strong></p>
+          <div class="pay-methods">
+            <button :class="['pay-option', selectedMethod === 'Efectivo' && 'pay-option-active']" @click="selectedMethod = 'Efectivo'">💵 Efectivo</button>
+            <button :class="['pay-option', selectedMethod === 'Transferencia' && 'pay-option-active']" @click="selectedMethod = 'Transferencia'">🏦 Transferencia</button>
+            <button :class="['pay-option', selectedMethod === 'Tarjeta' && 'pay-option-active']" @click="selectedMethod = 'Tarjeta'">💳 Tarjeta</button>
+          </div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+            <button class="btn-ghost" @click="showPayForm = false; selectedMethod = ''">Cancelar</button>
+            <button class="btn-confirm" :disabled="!selectedMethod || paying" @click="handlePagarCompleto">
+              {{ paying ? 'Procesando...' : 'Confirmar pago' }}
+            </button>
+          </div>
+        </div>
+
+        <div v-if="!showPayForm" class="actions-row">
+          <template v-if="remainingAmount <= 0">
+            <button class="btn-primary" @click="close">Cerrar</button>
+            <button class="btn-primary" style="margin-left:8px;background:#0ea5a4" @click="reimprimirTicket">Re-imprimir Ticket</button>
+          </template>
         </div>
       </section>
     </div>
@@ -55,15 +94,24 @@
 <script setup lang="ts">
 import type { Pedido } from '../types'
 import type { Pago } from '../types/pagos'
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { supabase } from '../lib/supabase'
+import { usePedidos } from '../composables/usePedidos'
 
 const props = defineProps<{ pedido: Pedido }>()
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'updated'])
 
 const pagos = ref<Pago[]>([])
+const showPayForm = ref(false)
+const selectedMethod = ref('')
+const paying = ref(false)
+
+const { fetchPedidoById, printTicket, registrarPago } = usePedidos()
 
 function close(){ emit('close') }
+
+const totalPaid = computed(() => pagos.value.reduce((s, p) => s + (Number(p.monto) || 0), 0))
+const remainingAmount = computed(() => Math.max(0, (Number(pedido.total) || 0) - totalPaid.value))
 
 function statusClass(s?: string){
   switch(s){
@@ -88,11 +136,41 @@ onMounted(async ()=>{
   const { data, error } = await supabase.from('pagos').select('*').eq('pedido_id', pedido.id).order('creado_en', { ascending: true })
   if (!error && data) pagos.value = data as Pago[]
 })
+
+async function handlePagarCompleto() {
+  if (!selectedMethod.value || paying.value) return
+  paying.value = true
+  try {
+    await registrarPago(pedido.id, remainingAmount.value, selectedMethod.value)
+    // Refresh pagos list
+    const { data } = await supabase.from('pagos').select('*').eq('pedido_id', pedido.id).order('creado_en', { ascending: true })
+    if (data) pagos.value = data as Pago[]
+    showPayForm.value = false
+    selectedMethod.value = ''
+    emit('updated')
+  } catch (err) {
+    console.error('Error registrando pago', err)
+    alert('No se pudo registrar el pago')
+  } finally {
+    paying.value = false
+  }
+}
+
+async function reimprimirTicket() {
+  if (!pedido || !pedido.id) return
+  try {
+    const full = await fetchPedidoById(pedido.id)
+    await printTicket(full)
+  } catch (err) {
+    console.warn('Error reimprimiendo ticket', err)
+    alert('No se pudo reimprimir el ticket')
+  }
+}
 </script>
 
 <style scoped>
-.modal-overlay{position:fixed;inset:0;background:rgba(2,6,23,0.45);display:flex;align-items:center;justify-content:center;padding:24px;z-index:80}
-.modal-card{background:linear-gradient(180deg,#ffffff,#fbfdff);border-radius:12px;padding:18px;width:640px;box-shadow:0 12px 36px rgba(2,6,23,0.12)}
+.modal-overlay{position:fixed;inset:0;background:rgba(2,6,23,0.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:80}
+.modal-card{background:linear-gradient(180deg,#ffffff,#fbfdff);border-radius:12px;padding:18px;width:640px;max-width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 12px 36px rgba(2,6,23,0.12);box-sizing:border-box}
 .modal-header--accent{display:flex;justify-content:space-between;align-items:center;padding-bottom:8px;border-bottom:1px solid #eef2f5}
 .modal-title{display:flex;gap:12px;align-items:center}
 .logo-pill{width:44px;height:44px;border-radius:10px;background:#0ea5a4;color:white;display:flex;align-items:center;justify-content:center;font-weight:700}
@@ -108,13 +186,60 @@ onMounted(async ()=>{
 .payment-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed #f3f7fa}
 .payment-row:last-child{border-bottom:0}
 .pay-right{color:#667085}
+.pay-method{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:999px;background:#eff6ff;color:#2563eb;font-size:0.8rem;font-weight:600}
 .total-row{display:flex;justify-content:space-between;font-weight:700;padding-top:6px}
+.remaining-row{display:flex;justify-content:space-between;font-weight:600;color:#dc2626}
+.remaining-amount{font-weight:700}
+.paid-badge{text-align:center;padding:8px;border-radius:8px;background:#ecfdf5;color:#065f46;font-weight:600}
 .actions-row{display:flex;justify-content:flex-end}
 .btn-primary{background:#059669;color:#fff;padding:8px 12px;border-radius:8px;border:none}
+.btn-pay{background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;padding:10px 18px;border-radius:8px;border:none;font-weight:700;cursor:pointer;font-size:0.95rem}
+.btn-pay:hover{filter:brightness(1.1)}
 .badge{padding:6px 10px;border-radius:999px;color:white;font-weight:600}
 .status-pending { background:#f59e0b }
 .status-blue { background:#3b82f6 }
 .status-gray { background:#6b7280 }
 .status-green { background:#10b981 }
 .status-red { background:#ef4444 }
+
+/* Pay form */
+.pay-form{border:1px solid #e0e7ff;border-radius:10px;padding:16px;background:#f8fafc}
+.pay-methods{display:flex;gap:10px;justify-content:center}
+.pay-option{background:#f6f7fb;border:2px solid #e5e7eb;padding:12px 20px;border-radius:10px;font-size:0.95rem;cursor:pointer;transition:all 0.15s}
+.pay-option:hover{border-color:#3b82f6;background:#eff6ff}
+.pay-option-active{border-color:#3b82f6;background:#eff6ff;font-weight:700}
+.btn-ghost{background:transparent;border:1px solid #ddd;padding:8px 14px;border-radius:6px;cursor:pointer}
+.btn-confirm{background:#059669;color:#fff;padding:8px 16px;border-radius:8px;border:none;font-weight:700;cursor:pointer}
+.btn-confirm:disabled{opacity:0.5;cursor:not-allowed}
+
+/* Dark mode */
+:is(.dark) .modal-overlay{background:rgba(0,0,0,0.6)}
+:is(.dark) .modal-card{background:linear-gradient(180deg,#111c2e,#0f1729);box-shadow:0 12px 36px rgba(0,0,0,0.3)}
+:is(.dark) .modal-header--accent{border-bottom-color:#1e293b}
+:is(.dark) .modal-header--accent h3{color:#e2e8f0}
+:is(.dark) .subtitle{color:#94a3b8}
+:is(.dark) .close{color:#94a3b8}
+:is(.dark) .modal-body{color:#cbd5e1}
+:is(.dark) .meta-row{color:#cbd5e1}
+:is(.dark) .meta-row strong{color:#e2e8f0}
+:is(.dark) .notes-block h4{color:#e2e8f0}
+:is(.dark) .notes-block .notes{background:#0f1729;border-color:#1e293b;color:#cbd5e1}
+:is(.dark) .items-block{border-color:#1e293b}
+:is(.dark) .items-block h4{color:#e2e8f0}
+:is(.dark) .detail-item{border-bottom-color:#1e293b;color:#cbd5e1}
+:is(.dark) .detail-item strong{color:#e2e8f0}
+:is(.dark) .payments-block{border-color:#1e293b}
+:is(.dark) .payments-block h4{color:#e2e8f0}
+:is(.dark) .payment-row{border-bottom-color:#1e293b;color:#cbd5e1}
+:is(.dark) .pay-right{color:#94a3b8}
+:is(.dark) .pay-method{background:#1e3a5f;color:#93c5fd}
+:is(.dark) .total-row{color:#e2e8f0}
+:is(.dark) .remaining-row{color:#fca5a5}
+:is(.dark) .paid-badge{background:#052e16;color:#6ee7b7}
+:is(.dark) .pay-form{background:#0f1729;border-color:#1e293b}
+:is(.dark) .pay-form h4{color:#e2e8f0}
+:is(.dark) .pay-methods .pay-option{background:#0f1729;border-color:#334155;color:#cbd5e1}
+:is(.dark) .pay-methods .pay-option:hover{border-color:#3b82f6;background:#1e3a5f}
+:is(.dark) .pay-methods .pay-option-active{border-color:#3b82f6;background:#1e3a5f}
+:is(.dark) .btn-ghost{border-color:#334155;color:#cbd5e1}
 </style>

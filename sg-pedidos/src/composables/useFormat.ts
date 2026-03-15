@@ -33,5 +33,10 @@ export function useFormat() {
     })
   }
 
-  return { formatDate, formatDateOnly, formatTime }
+  const formatCurrency = (n?: number | null) => {
+    const v = Number(n || 0)
+    return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 2 }).format(v)
+  }
+
+  return { formatDate, formatDateOnly, formatTime, formatCurrency }
 }

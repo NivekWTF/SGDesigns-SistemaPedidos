@@ -22,6 +22,7 @@ export interface CrearPedidoInput {
 
 export interface PedidoItem {
   id: string
+  producto_id?: string | null
   descripcion_personalizada?: string | null
   cantidad: number
   precio_unitario: number

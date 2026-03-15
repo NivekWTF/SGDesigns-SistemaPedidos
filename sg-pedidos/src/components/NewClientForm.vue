@@ -79,4 +79,15 @@ function close(){ emit('close') }
 .form-actions.full-width{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
 .btn-primary{background:#059669;color:#fff;padding:8px 12px;border-radius:8px;border:none}
 .btn-ghost{background:transparent;border:1px solid #e6eef2;padding:8px 12px;border-radius:8px}
+
+/* Dark mode */
+:is(.dark) .modal-overlay{background:rgba(0,0,0,0.6)}
+:is(.dark) .modal-card{background:linear-gradient(180deg,#111c2e,#0f1729);box-shadow:0 12px 36px rgba(0,0,0,0.3)}
+:is(.dark) .modal-header--accent{border-bottom-color:#1e293b}
+:is(.dark) .modal-header--accent h3{color:#e2e8f0}
+:is(.dark) .subtitle{color:#94a3b8}
+:is(.dark) .close{color:#94a3b8}
+:is(.dark) .label{color:#94a3b8}
+:is(.dark) .input{background:#0f1729;border-color:#334155;color:#e2e8f0}
+:is(.dark) .btn-ghost{border-color:#334155;color:#cbd5e1}
 </style>
