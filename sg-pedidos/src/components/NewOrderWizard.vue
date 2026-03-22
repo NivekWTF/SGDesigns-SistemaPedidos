@@ -3,9 +3,9 @@
     <div class="wizard-card">
       <header class="wizard-header">
         <div class="wizard-steps">
-          <div :class="['step', { active: step === 1 }]">1. Cliente</div>
-          <div :class="['step', { active: step === 2 }]">2. Productos</div>
-          <div :class="['step', { active: step === 3 }]">3. Revisión</div>
+          <div :class="stepClasses(1)">1. Cliente</div>
+          <div :class="stepClasses(2)">2. Productos</div>
+          <div :class="stepClasses(3)">3. Revisión</div>
         </div>
         <button class="close" @click="close">✕</button>
       </header>
@@ -16,7 +16,6 @@
           <div class="step-actions">
             <input v-model="clientSearch" placeholder="Buscar cliente..." class="input" />
             <div>
-              <button class="btn-outline" @click="openNewClient">Registrar nuevo</button>
               <button class="btn-primary" :disabled="!selectedClient" @click="nextStep">Siguiente</button>
             </div>
           </div>
@@ -25,8 +24,7 @@
             <div
               v-for="c in paginatedClients"
               :key="c.id"
-              class="card"
-              :class="{ selected: selectedClient?.id === c.id }"
+              :class="clientCardClasses(c.id)"
               @click="selectClient(c)">
               <div class="card-title">{{ c.nombre }}</div>
               <div class="card-sub">{{ c.telefono || '-' }} · {{ c.correo || '-' }}</div>
@@ -132,6 +130,16 @@
               <input type="number" v-model.number="anticipo" min="0" step="0.01" class="input" />
             </div>
 
+            <div class="anticipo-row">
+              <label>Metodo de pago</label>
+              <select v-model="anticipoMetodo" class="input">
+                <option value="Efectivo">Efectivo</option>
+                <option value="Transferencia">Transferencia</option>
+                <option value="Tarjeta">Tarjeta</option>
+                <option value="Otro">Otro</option>
+              </select>
+            </div>
+
             <div class="wizard-actions">
               <button class="btn-primary" @click="confirmOrder">Confirmar pedido</button>
               <button class="btn-ghost" @click="prevStep">Atrás</button>
@@ -149,7 +157,6 @@ import { useClientes } from '../composables/useClientes'
 import { useProductos } from '../composables/useProductos'
 import { usePedidos } from '../composables/usePedidos'
 import { supabase } from '../lib/supabase'
-import NewClientForm from './NewClientForm.vue'
 import { useFormat } from '../composables/useFormat'
 
 const emit = defineEmits(['created','close'])
@@ -175,9 +182,8 @@ const selectedClient = ref<any | null>(null)
 const productQty = ref<Record<string, number>>({})
 const items = ref<Array<any>>([])
 const anticipo = ref(0)
+const anticipoMetodo = ref('Efectivo')
 const notas = ref('')
-
-const showNewClient = ref(false)
 
 onMounted(async () => {
   await fetchClientes()
@@ -221,11 +227,6 @@ const paginatedClients = computed(() => {
 
 function prevPageClients(){ if(pageClients.value > 1) pageClients.value-- }
 function nextPageClients(){ if(pageClients.value < totalPagesClients.value) pageClients.value++ }
-function goToPageClients(n:number){
-  if(n < 1) n = 1
-  if(n > totalPagesClients.value) n = totalPagesClients.value
-  pageClients.value = n
-}
 
 const filteredProducts = computed(() => {
   const q = (productSearch.value || '').toLowerCase().trim()
@@ -240,22 +241,21 @@ const paginatedProducts = computed(() => {
   return (filteredProducts.value || []).slice(start, start + perPage.value)
 })
 
-function goToPage(n:number){
-  if(n < 1) n = 1
-  if(n > totalPages.value) n = totalPages.value
-  page.value = n
-}
-
 function prevPage(){ if(page.value > 1) page.value-- }
 function nextPage(){ if(page.value < totalPages.value) page.value++ }
 
 function selectClient(c:any){ selectedClient.value = c }
 
+function stepClasses(currentStep: number) {
+  return step.value === currentStep ? ['step', 'active'] : ['step']
+}
+
+function clientCardClasses(clientId: string) {
+  return selectedClient.value?.id === clientId ? ['card', 'selected'] : ['card']
+}
+
 function nextStep(){ if(step.value < 3) step.value++ }
 function prevStep(){ if(step.value > 1) step.value-- }
-
-function openNewClient(){ showNewClient.value = true }
-async function onCreatedClient(){ showNewClient.value = false; await fetchClientes(); }
 
 function openProductList(){ /* no-op: products already visible */ }
 
@@ -290,14 +290,20 @@ async function confirmOrder(){
     // if an anticipo value was provided while editing, insert it as a pago (anticipo)
     if (anticipo.value && Number(anticipo.value) > 0) {
       try {
-        const { error: pagoErr } = await supabase.from('pagos').insert([{ pedido_id: props.initialPedido.id, monto: Number(anticipo.value), es_anticipo: true, creado_en: new Date().toISOString() }])
+        const { error: pagoErr } = await supabase.from('pagos').insert([{ pedido_id: props.initialPedido.id, monto: Number(anticipo.value), metodo: anticipoMetodo.value, es_anticipo: true, creado_en: new Date().toISOString() }])
         if (pagoErr) console.warn('No se pudo insertar pago (anticipo):', pagoErr)
       } catch (e) {
         console.warn('Error al insertar pago (anticipo):', e)
       }
     }
   } else {
-    const pedido = await crearPedido({ cliente_id: selectedClient.value.id, notas: notas.value, items: payloadItems, anticipo: anticipo.value > 0 ? anticipo.value : undefined })
+    await crearPedido({
+      cliente_id: selectedClient.value.id,
+      notas: notas.value,
+      items: payloadItems,
+      anticipo: anticipo.value > 0 ? anticipo.value : undefined,
+      anticipo_metodo: anticipo.value > 0 ? anticipoMetodo.value : undefined
+    })
     // El stock ya fue descontado atómicamente por el RPC create_pedido_with_stock.
     // Refrescamos la lista local de productos para reflejar los nuevos niveles de stock.
     await fetchProductos()

@@ -1,5 +1,5 @@
 -- RPC: create_pedido_with_stock
--- Usage: call with { cliente_id, notas, items: [{ producto_id, cantidad, precio_unitario, descripcion_personalizada }], anticipo, consumos }
+-- Usage: call with { cliente_id, notas, items: [{ producto_id, cantidad, precio_unitario, descripcion_personalizada }], anticipo, consumos, anticipo_metodo }
 -- consumos (optional): [{ producto_id, cantidad }] — raw materials to decrement from stock (e.g. tabloides consumed by sobreplatos)
 -- This function will:
 -- 1) Verify stock for each product (FOR UPDATE)
@@ -7,12 +7,16 @@
 -- 3) Create a pedido, insert pedido_items, decrement stock, decrement material stock, and optionally insert pago (anticipo)
 -- It will raise an exception and abort the transaction if any product has insufficient stock.
 
+-- Remove legacy 5-argument signature to avoid RPC ambiguity (PGRST203).
+drop function if exists public.create_pedido_with_stock(uuid, text, jsonb, numeric, jsonb);
+
 create or replace function public.create_pedido_with_stock(
   cliente_id uuid,
   notas text,
   items jsonb,
   anticipo numeric default null,
-  consumos jsonb default '[]'::jsonb
+  consumos jsonb default '[]'::jsonb,
+  anticipo_metodo text default null
 ) returns table(pedido_id uuid) as $$
 declare
   v_pedido_id uuid;
@@ -22,6 +26,8 @@ declare
   prod_stock numeric;
   prod_nombre text;
 begin
+  perform public.require_app_role(array['admin', 'empleado']);
+
   if items is null then
     raise exception 'items array required';
   end if;
@@ -94,15 +100,18 @@ begin
   -- insert anticipo payment if provided
   if anticipo is not null and anticipo > 0 then
     insert into pagos (pedido_id, monto, metodo, referencia, creado_en, es_anticipo)
-    values (v_pedido_id, anticipo, null, null, now(), true);
+    values (v_pedido_id, anticipo, anticipo_metodo, null, now(), true);
   end if;
 
   -- return created pedido id
   pedido_id := v_pedido_id;
   return next;
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer set search_path = public;
+
+revoke all on function public.create_pedido_with_stock(uuid, text, jsonb, numeric, jsonb, text) from public;
+grant execute on function public.create_pedido_with_stock(uuid, text, jsonb, numeric, jsonb, text) to authenticated;
 
 -- Notes:
--- - Deploy this SQL in the Supabase SQL editor (not in the client). Ensure the role used by the RPC has rights to update productos.stock, insert into pedidos/pedido_items/pagos.
--- - Consider adding a dedicated DB role or policy that allows calling this RPC while preventing direct client updates to `productos.stock`.
+-- - Deploy the RBAC script before this function so `public.require_app_role()` is available.
+-- - This RPC is allowed for `admin` and `empleado` only.

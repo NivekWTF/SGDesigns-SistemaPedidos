@@ -3,6 +3,8 @@ returns table(period text, ingresos numeric, gastos numeric, profit numeric)
 language plpgsql
 as $$
 begin
+  perform public.require_app_role(array['admin']);
+
   if to_regclass('public.gastos') is null then
     return query
     with ws as (
@@ -45,3 +47,6 @@ begin
   end if;
 end;
 $$;
+
+revoke all on function public.report_profit_and_expenses_weekly(integer, text) from public;
+grant execute on function public.report_profit_and_expenses_weekly(integer, text) to authenticated;

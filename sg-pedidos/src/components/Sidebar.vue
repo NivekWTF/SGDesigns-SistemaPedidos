@@ -1,6 +1,6 @@
 <template>
   <aside
-    :class="['sidebar', { collapsed: effectiveCollapsed, 'mobile-open': mobileOpen }]"
+    :class="sidebarClasses"
     @mouseenter="onMouseEnter"
     @mouseleave="onMouseLeave"
   >
@@ -10,7 +10,7 @@
     </button>
 
     <div class="brand">
-      <button class="logo-btn" @click.stop="toggleMenu" :title="user ? (user.user_metadata?.full_name || user.email) : 'Perfil'">
+      <button class="logo-btn" @click.stop="toggleMenu" :title="user ? displayName : 'Perfil'">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
           <circle cx="12" cy="8" r="3.2" stroke="#fff" stroke-width="1.2" />
           <path d="M4 20c1.6-3.6 4.8-6 8-6s6.4 2.4 8 6" stroke="#fff" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -21,11 +21,14 @@
         <template v-if="user">
           <div class="brand-row">
             <img v-if="user.user_metadata?.avatar_url" :src="user.user_metadata.avatar_url" alt="avatar" class="avatar" />
-            <div class="brand-name">{{ user.user_metadata?.full_name || user.user_metadata?.name || user.email }}</div>
+            <div>
+              <div class="brand-name">{{ displayName }}</div>
+              <div v-if="role" class="role-badge">{{ roleLabel }}</div>
+            </div>
           </div>
 
           <div v-if="menuOpen" class="quick-menu" @click.stop>
-            <a class="menu-item" @click="goToProfile">Perfil</a>
+            <div class="menu-meta">Rol: {{ roleLabel }}</div>
             <a class="menu-item" @click="handleSignOut">Cerrar sesión</a>
           </div>
         </template>
@@ -42,7 +45,7 @@
     </div>
 
     <nav class="nav-list">
-      <router-link to="/" class="nav-item" :title="effectiveCollapsed && !mobileOpen ? 'Inicio' : ''" @click="closeMobile">
+      <router-link v-if="isAdmin" to="/" class="nav-item" :title="effectiveCollapsed && !mobileOpen ? 'Inicio' : ''" @click="closeMobile">
         <span class="icon"><LayoutDashboard class="h-[18px] w-[18px]" /></span>
         <span v-show="!effectiveCollapsed || mobileOpen" class="label">Inicio</span>
       </router-link>
@@ -52,22 +55,37 @@
         <span v-show="!effectiveCollapsed || mobileOpen" class="label">Pedidos</span>
       </router-link>
 
-      <router-link to="/clientes" class="nav-item" :title="effectiveCollapsed && !mobileOpen ? 'Clientes' : ''" @click="closeMobile">
+      <router-link to="/cotizador" class="nav-item" :title="effectiveCollapsed && !mobileOpen ? 'Cotizador' : ''" @click="closeMobile">
+        <span class="icon"><FileText class="h-[18px] w-[18px]" /></span>
+        <span v-show="!effectiveCollapsed || mobileOpen" class="label">Cotizador</span>
+      </router-link>
+
+      <router-link v-if="isAdmin" to="/usuarios" class="nav-item" :title="effectiveCollapsed && !mobileOpen ? 'Usuarios' : ''" @click="closeMobile">
+        <span class="icon"><Shield class="h-[18px] w-[18px]" /></span>
+        <span v-show="!effectiveCollapsed || mobileOpen" class="label">Usuarios</span>
+      </router-link>
+
+      <router-link v-if="isAdmin" to="/clientes" class="nav-item" :title="effectiveCollapsed && !mobileOpen ? 'Clientes' : ''" @click="closeMobile">
         <span class="icon"><Users class="h-[18px] w-[18px]" /></span>
         <span v-show="!effectiveCollapsed || mobileOpen" class="label">Clientes</span>
       </router-link>
 
-      <router-link to="/productos" class="nav-item" :title="effectiveCollapsed && !mobileOpen ? 'Productos' : ''" @click="closeMobile">
+      <router-link v-if="isAdmin" to="/productos" class="nav-item" :title="effectiveCollapsed && !mobileOpen ? 'Productos' : ''" @click="closeMobile">
         <span class="icon"><ShoppingCart class="h-[18px] w-[18px]" /></span>
         <span v-show="!effectiveCollapsed || mobileOpen" class="label">Productos</span>
       </router-link>
 
-      <router-link to="/gastos" class="nav-item" :title="effectiveCollapsed && !mobileOpen ? 'Gastos' : ''" @click="closeMobile">
+      <router-link v-if="isAdmin" to="/gastos" class="nav-item" :title="effectiveCollapsed && !mobileOpen ? 'Gastos' : ''" @click="closeMobile">
         <span class="icon"><Wallet class="h-[18px] w-[18px]" /></span>
         <span v-show="!effectiveCollapsed || mobileOpen" class="label">Gastos</span>
       </router-link>
 
-      <router-link to="/reporte-productos" class="nav-item" :title="effectiveCollapsed && !mobileOpen ? 'Ventas Producto' : ''" @click="closeMobile">
+      <router-link v-if="isAdmin" to="/caja" class="nav-item" :title="effectiveCollapsed && !mobileOpen ? 'Caja' : ''" @click="closeMobile">
+        <span class="icon"><Banknote class="h-[18px] w-[18px]" /></span>
+        <span v-show="!effectiveCollapsed || mobileOpen" class="label">Caja</span>
+      </router-link>
+
+      <router-link v-if="isAdmin" to="/reporte-productos" class="nav-item" :title="effectiveCollapsed && !mobileOpen ? 'Ventas Producto' : ''" @click="closeMobile">
         <span class="icon"><BarChart3 class="h-[18px] w-[18px]" /></span>
         <span v-show="!effectiveCollapsed || mobileOpen" class="label">Ventas Producto</span>
       </router-link>
@@ -92,7 +110,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useAuth } from '../composables/useAuth'
-import { LayoutDashboard, Package, Users, ShoppingCart, Wallet, BarChart3, ChevronLeft, ChevronRight, X, Sun, Moon } from 'lucide-vue-next'
+import { LayoutDashboard, Package, Shield, Users, ShoppingCart, Wallet, BarChart3, Banknote, ChevronLeft, ChevronRight, X, Sun, Moon, FileText } from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
 
 const props = defineProps<{
   mobileOpen?: boolean
@@ -102,7 +121,8 @@ const emit = defineEmits<{
   (e: 'close-mobile'): void
 }>()
 
-const { user } = useAuth()
+const router = useRouter()
+const { user, profile, role, isAdmin, signOut } = useAuth()
 
 const STORAGE_KEY = 'sidebar-collapsed'
 const collapsed = ref<boolean>(localStorage.getItem(STORAGE_KEY) === '1')
@@ -111,12 +131,29 @@ const hovered = ref(false)
 const menuOpen = ref(false)
 const preventHoverExpand = ref(false)
 
-import { useRouter } from 'vue-router'
-const router = useRouter()
-const { signOut } = useAuth()
-
 const effectiveCollapsed = computed(() => {
   return collapsed.value && !hovered.value
+})
+
+const sidebarClasses = computed(() => {
+  const classes = ['sidebar']
+  if (effectiveCollapsed.value) classes.push('collapsed')
+  if (props.mobileOpen) classes.push('mobile-open')
+  return classes
+})
+
+const displayName = computed(() => {
+  return profile.value?.full_name
+    || user.value?.user_metadata?.full_name
+    || user.value?.user_metadata?.name
+    || user.value?.email
+    || 'Usuario'
+})
+
+const roleLabel = computed(() => {
+  if (role.value === 'admin') return 'Administrador'
+  if (role.value === 'empleado') return 'Empleado'
+  return 'Sin rol'
 })
 
 function toggle() {
@@ -135,12 +172,6 @@ function onMouseEnter() {
 
 function onMouseLeave() {
   if (collapsed.value) hovered.value = false
-}
-
-function goToProfile(){
-  menuOpen.value = false
-  emit('close-mobile')
-  router.push('/profile')
 }
 
 async function handleSignOut(){
@@ -213,10 +244,14 @@ applyTheme()
 .avatar{width:32px;height:32px;border-radius:999px;object-fit:cover}
 .brand-name{font-family:'Josefin Sans',sans-serif;font-weight:700}
 :is(.dark) .brand-name{color:#e2e8f0}
+.role-badge{display:inline-flex;align-items:center;margin-top:3px;padding:2px 8px;border-radius:999px;background:#e0f2fe;color:#0369a1;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+:is(.dark) .role-badge{background:#0c4a6e;color:#bae6fd}
 .menu-btn{background:transparent;border:none;cursor:pointer;padding:4px}
 .menu-btn-collapsed{background:transparent;border:none;cursor:pointer;padding:4px;width:40px;height:40px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center}
 .quick-menu{position:fixed;left:88px;top:56px;background:#fff;border:1px solid #e6eef2;padding:8px;border-radius:8px;box-shadow:0 8px 24px rgba(2,6,23,0.12);z-index:200}
 :is(.dark) .quick-menu{background:#1e293b;border-color:#334155;box-shadow:0 8px 24px rgba(0,0,0,0.4)}
+.menu-meta{padding:6px 8px;color:#475569;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+:is(.dark) .menu-meta{color:#94a3b8}
 .menu-item{display:block;padding:6px 8px;color:#0f172a;text-decoration:none;cursor:pointer}
 :is(.dark) .menu-item{color:#cbd5e1}
 .menu-item:hover{background:#f1f5f9}

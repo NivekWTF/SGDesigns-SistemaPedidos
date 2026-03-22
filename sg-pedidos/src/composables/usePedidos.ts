@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { supabase } from '../lib/supabase'
 import { getMaterialRules } from '../lib/costs'
-import type { CrearPedidoInput, EstadoPedido, Pedido, PedidoItem } from '../types'
+import type { CrearPedidoInput, EstadoPedido, Pedido, PedidoItemInput } from '../types'
 
 const pedidos = ref<Pedido[]>([])
 const loading = ref(false)
@@ -102,8 +102,9 @@ async function crearPedido(input: CrearPedidoInput) {
         .select('id, nombre')
         .ilike('nombre', '%' + pattern + '%')
         .limit(1)
-      if (mats && mats.length) {
-        consumos.push({ producto_id: mats[0].id, cantidad: qty })
+      const material = mats?.[0]
+      if (material) {
+        consumos.push({ producto_id: material.id, cantidad: qty })
       }
     }
 
@@ -112,7 +113,8 @@ async function crearPedido(input: CrearPedidoInput) {
       notas: input.notas ?? null,
       items: input.items,
       anticipo: input.anticipo ?? null,
-      consumos: consumos.length ? consumos : []
+      consumos: consumos.length ? consumos : [],
+      anticipo_metodo: input.anticipo_metodo ?? null
     })
 
     if (error) {
@@ -178,9 +180,12 @@ async function actualizarEstadoPedido(id: string, estado: EstadoPedido) {
   try {
     const idx = pedidos.value.findIndex(p => p.id === id)
     if (idx !== -1) {
+      const currentPedido = pedidos.value[idx]
+      if (!currentPedido) return
+
       // mutate the object to keep reactivity
       pedidos.value[idx] = {
-        ...pedidos.value[idx],
+        ...currentPedido,
         estado,
         updated_at: new Date().toISOString()
       }
@@ -360,8 +365,6 @@ async function printTicket(pedido: any) {
     const total = Number(pedido.total) || 0
     const resta = Math.max(0, total - pagado)
 
-    const folio = pedido.folio || ''
-    const pedidoId = pedido.id || ''
     const paymentMethods = pagos.length
       ? (pagos
           .filter((p:any) => p.metodo)
@@ -515,7 +518,7 @@ async function eliminarPedido(id: string) {
   pedidos.value = pedidos.value.filter(p => p.id !== id)
 }
 
-async function actualizarPedidoCompleto(id: string, input: { notas?: string | null; items: PedidoItem[] }) {
+async function actualizarPedidoCompleto(id: string, input: { notas?: string | null; items: PedidoItemInput[] }) {
   errorMsg.value = null
 
   // 1) actualizar campos del pedido

@@ -186,3 +186,69 @@ body {
     cursor: pointer;
   }
 }
+
+/* --- Cotizador Styles --- */
+.cot-container { max-width: 816px; margin: 24px auto; padding: 24px; }
+.cotizador-page { color: #0e1622; font-family: Inter, system-ui, Arial, Helvetica, sans-serif; background: #f3f6fb; min-height: 100vh; }
+.cotizador-page .sheet { background: #fff; box-shadow: 0 10px 30px rgba(10,46,92,.12); border-radius: 14px; padding: 28px; }
+.cotizador-page .title { font-weight: 800; letter-spacing: .5px; color: #0a2e5c; }
+.cotizador-page .muted { color: #66768f; }
+.cotizador-page .grid { display: grid; gap: 16px; }
+.cotizador-page .row { display: flex; gap: 12px; align-items: center; }
+
+.cotizador-page input[type="text"],
+.cotizador-page input[type="number"],
+.cotizador-page input[type="date"],
+.cotizador-page textarea {
+  width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #b8c2d1;
+  border-radius: 10px; font: inherit; background: transparent; color: #0e1622;
+}
+.cotizador-page textarea { min-height: 88px; resize: vertical; }
+.cotizador-page button { cursor: pointer; border: 1px solid #0a2e5c; background: #0a2e5c; color: #fff; padding: 10px 14px; border-radius: 10px; font-weight: 600; }
+.cotizador-page button.ghost { background: #fff; color: #0a2e5c; }
+.cotizador-page button.flat { background: #eef3fb; border-color: #c9d6ee; color: #0a2e5c; }
+.cotizador-page .toolbar { display: flex; gap: 10px; flex-wrap: wrap; }
+.cotizador-page .boxed { border: 1px solid #b8c2d1; border-radius: 12px; padding: 16px; }
+.cotizador-page .label { font-size: 12px; color: #66768f; font-weight: 600; margin-bottom: 6px; }
+
+/* Tabla */
+.cotizador-page table { width: 100%; border-collapse: collapse; }
+.cotizador-page th, .cotizador-page td { border: 1px solid #b8c2d1; padding: 8px 10px; color: #0e1622; }
+.cotizador-page th { background: #f1f5fb; color: #143a72; font-weight: 700; text-align: left; }
+.cotizador-page td.num { text-align: right; }
+.cotizador-page td.center { text-align: center; }
+
+/* Encabezado */
+.cotizador-page .quote-head { display: grid; grid-template-columns: 1fr auto; gap: 18px; align-items: start; }
+.cotizador-page .brand-block { display: flex; gap: 12px; align-items: center; }
+.cotizador-page .brand-logo { width: 68px; height: 68px; border: 1px dashed #c7d2e5; border-radius: 12px; display: grid; place-content: center; overflow: hidden; background: #f7f9fd; }
+.cotizador-page .brand-logo img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.cotizador-page .folio-box { border: 2px solid #0e1622; border-radius: 12px; padding: 8px 12px; text-align: right; font-weight: 800; color: #0e1622; }
+.cotizador-page .big { font-size: 28px; }
+
+.cotizador-page .section-title { margin: 10px 0 2px 0; font-weight: 800; color: #143a72; }
+
+/* Ajustes para que quepa en una hoja (compacto) */
+.cotizador-page .sheet { padding: 22px; }
+.cotizador-page .title.big { font-size: 24px; }
+.cotizador-page th, .cotizador-page td { padding: 6px 8px; font-size: 12px; }
+.cotizador-page input, .cotizador-page textarea { padding: 8px 10px; font-size: 13px; }
+.cotizador-page .brand-logo { width: 56px; height: 56px; }
+.cotizador-page .folio-box { padding: 6px 10px; }
+
+/* Impresión */
+@media print {
+  @page { size: Letter; margin: 10mm; }
+  body { background: #fff !important; }
+  #app { background: #fff !important; }
+  .cot-container { margin: 0; padding: 0; max-width: none; }
+  .cotizador-page .sheet {
+    box-shadow: none; border-radius: 0; padding: 10mm;
+    transform: scale(0.96);
+    transform-origin: top left;
+    width: calc(100% / 0.96);
+  }
+  .toolbar, .no-print, .sidebar, .topbar, .app-shell header { display: none !important; }
+  .main-column { padding-left: 0 !important; }
+  .app-shell { background: #fff !important; }
+}

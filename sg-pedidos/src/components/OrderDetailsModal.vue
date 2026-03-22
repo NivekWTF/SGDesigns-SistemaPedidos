@@ -26,8 +26,8 @@
         <div class="items-block">
           <h4>Items</h4>
           <div v-for="(it, idx) in pedido.pedido_items || []" :key="it.id || idx" class="detail-item">
-            <div class="item-left">{{ it.cantidad }} x <strong>{{ it.descripcion_personalizada || it.productos?.nombre || 'Item' }}</strong></div>
-            <div class="item-right">${{ ((it.cantidad||0) * (it.precio_unitario||0)).toFixed(2) }}</div>
+            <div class="item-left">{{ fmtQty(Number(it.cantidad)) }} x <strong>{{ it.descripcion_personalizada || it.productos?.nombre || 'Item' }}</strong></div>
+            <div class="item-right">${{ ((Number(it.cantidad)||0) * (Number(it.precio_unitario)||0)).toFixed(2) }}</div>
           </div>
         </div>
 
@@ -127,6 +127,12 @@ function statusClass(s?: string){
 function formatDate(d?: string | null){
   if(!d) return ''
   try{ return new Date(d).toLocaleString() }catch{ return d }
+}
+
+function fmtQty(n: number) {
+  if (!Number.isFinite(n)) return '0'
+  if (Number.isInteger(n)) return String(n)
+  return n.toFixed(2).replace(/\.?0+$/, '')
 }
 
 const pedido = props.pedido

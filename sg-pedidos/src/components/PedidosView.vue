@@ -198,8 +198,10 @@
               <button class="btn-menu" @click="toggleMenu(p.id)">⋯</button>
               <div v-if="openMenuId === p.id" class="menu-pop">
                 <button @click="viewDetails(p)">Detalles</button>
-                <div class="menu-divider"></div>
-                <button @click="borrar(p.id)" style="color:#ef4444">Eliminar</button>
+                <template v-if="isAdmin">
+                  <div class="menu-divider"></div>
+                  <button @click="borrar(p.id)" style="color:#ef4444">Eliminar</button>
+                </template>
                 <div class="menu-divider"></div>
                 <div class="status-actions">
                   <div class="status-label">Cambiar estado</div>
@@ -221,41 +223,30 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue'
 import { usePedidos } from '../composables/usePedidos'
+import { useAuth } from '../composables/useAuth'
 import { useFormat } from '../composables/useFormat'
 import { useProductos } from '../composables/useProductos'
-import { useClientes } from '../composables/useClientes'
 import NewOrderWizard from './NewOrderWizard.vue'
 import OrderDetailsModal from './OrderDetailsModal.vue'
-import type { EstadoPedido, PedidoItemInput } from '../types'
-import type { Producto } from '../types'
+import type { EstadoPedido } from '../types'
 
 const {
   pedidos,
   loading,
   errorMsg,
   fetchPedidos,
-  crearPedido,
+  fetchPedidoById,
   actualizarEstadoPedido,
   registrarPago,
   eliminarPedido
 } = usePedidos()
 
-// Formulario (múltiples ítems) - kept for table edit logic, creation moved to component
-const clienteId = ref('')
-const notas = ref('')
-const anticipo = ref(0)
-const items = ref<PedidoItemInput[]>([
-  { producto_id: null, descripcion_personalizada: '', cantidad: 1, precio_unitario: 0 }
-])
+const { isAdmin } = useAuth()
 
 // productos para el select
 const { productos, fetchProductos } = useProductos()
 
-// estado editable en la tabla
-const estados = ref<Record<string, EstadoPedido>>({} as any)
-
-const { formatDate, formatDateOnly, formatCurrency } = useFormat()
-const { clientes, fetchClientes } = useClientes()
+const { formatDateOnly, formatCurrency } = useFormat()
 
 // UI state
 const searchTerm = ref('')
@@ -276,7 +267,7 @@ const onlyWithAnticipo = ref(false)
 const onlyWithNotes = ref(false)
 
 function parseLocalDate(dateStr: string, endOfDay = false): Date {
-  const [year, month, day] = dateStr.split('-').map((v) => Number(v))
+  const [year = 0, month = 1, day = 1] = dateStr.split('-').map((v) => Number(v))
   if (endOfDay) return new Date(year, month - 1, day, 23, 59, 59, 999)
   return new Date(year, month - 1, day, 0, 0, 0, 0)
 }
@@ -335,12 +326,6 @@ async function onPaymentUpdated() {
   await fetchPedidos()
 }
 
-function openPayFromMenu(p: any) {
-  openMenuId.value = null
-  selectedPedido.value = p
-  showDetails.value = true
-}
-
 function toggleMoreFilters(){ showMoreFilters.value = !showMoreFilters.value }
 
 const filteredPedidos = computed(() => {
@@ -371,7 +356,7 @@ const filteredPedidos = computed(() => {
 
     // more filters
     if (onlyWithAnticipo.value) {
-      const pagosArr = p.pagos || []
+      const pagosArr = (p as any).pagos || []
       const hasAnt = pagosArr.some((r:any) => !!r.es_anticipo || Number(r.monto) > 0)
       if (!hasAnt) return false
     }
@@ -441,11 +426,6 @@ async function editPedido(p: any) {
 onMounted(async () => {
   await fetchPedidos()
   await fetchProductos()
-  await fetchClientes()
-  // inicializar estados
-  estados.value = Object.fromEntries(
-    pedidos.value.map((p) => [p.id, (p.estado ?? 'PENDIENTE') as EstadoPedido])
-  )
 })
 
 // helper for status classes
@@ -466,72 +446,21 @@ function statusClass(s?: EstadoPedido) {
   }
 }
 
+function fmtQty(n: number) {
+  if (!Number.isFinite(n)) return '0'
+  if (Number.isInteger(n)) return String(n)
+  return n.toFixed(2).replace(/\.?0+$/, '')
+}
+
 function formatDescription(p: any) {
   const items = p.pedido_items || []
   if (!items || items.length === 0) return '—'
   return items
     .map((it: any) => {
       const name = it.descripcion_personalizada || it.productos?.nombre || 'Item'
-      return `${it.cantidad} x ${name}`
+      return `${fmtQty(Number(it.cantidad))} x ${name}`
     })
     .join(', ')
-}
-
-function addItem() {
-  items.value.push({ producto_id: null, descripcion_personalizada: '', cantidad: 1, precio_unitario: 0 })
-}
-
-function removeItem(index: number) {
-  if (items.value.length === 1) return
-  items.value.splice(index, 1)
-}
-
-async function handleCrearPedido() {
-  // ensure there's at least one item with valid values
-  if (!clienteId.value) {
-    alert('El ID de cliente es requerido')
-    return
-  }
-
-  const payloadItems = items.value.map((it) => ({
-    producto_id: it.producto_id,
-    cantidad: it.cantidad,
-    precio_unitario: it.precio_unitario,
-    descripcion_personalizada: it.descripcion_personalizada
-  }))
-
-  await crearPedido({
-    cliente_id: clienteId.value,
-    notas: notas.value,
-    items: payloadItems,
-    anticipo: anticipo.value > 0 ? anticipo.value : undefined
-  })
-
-  // reset form
-  clienteId.value = ''
-  notas.value = ''
-  anticipo.value = 0
-  items.value = [{ producto_id: null, descripcion_personalizada: '', cantidad: 1, precio_unitario: 0 }]
-}
-
-function onProductChange(idx: number) {
-  const item = items.value[idx]
-  if (!item) return
-
-  const prodId = item.producto_id
-  const prod = (productos.value as Producto[]).find((p) => p.id === prodId)
-  if (prod) item.precio_unitario = prod.precio_base
-}
-
-async function cambiarEstado(id: string) {
-  const nuevoEstado = estados.value[id]
-  if (typeof nuevoEstado === 'undefined') {
-    // no-op if state not initialized for this pedido; log for debugging
-    console.warn(`Pedido ${id} tiene estado indefinido, omitiendo actualización.`)
-    return
-  }
-
-  await actualizarEstadoPedido(id, nuevoEstado)
 }
 
 async function setEstado(p: any, nuevoEstado: EstadoPedido | string) {
@@ -581,6 +510,12 @@ async function confirmEntregado() {
 }
 
 async function borrar(id: string) {
+  if (!isAdmin.value) {
+    openMenuId.value = null
+    alert('Solo un administrador puede eliminar pedidos')
+    return
+  }
+
   if (!confirm('¿Seguro que quieres eliminar este pedido?')) return
   await eliminarPedido(id)
 }

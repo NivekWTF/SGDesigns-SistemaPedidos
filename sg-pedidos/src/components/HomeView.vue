@@ -15,7 +15,7 @@
         </div>
 
         <!-- ROW 1: Hero KPI cards -->
-        <section class="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <section class="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-4">
           <!-- Ventas Hoy -->
           <div
             class="min-w-0 overflow-hidden rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-emerald-100/70 p-8 shadow-[0_8px_24px_rgba(15,23,42,0.06)] dark:border-emerald-500/20 dark:bg-gradient-to-br dark:from-[#0d3320] dark:to-[#052e16] dark:shadow-[0_10px_30px_rgba(0,0,0,0.22)]"
@@ -98,6 +98,51 @@
                 class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-cyan-200 bg-white/80 dark:border-cyan-400/10 dark:bg-cyan-500/15"
               >
                 <BarChart3 class="h-7 w-7 text-cyan-600 dark:text-cyan-400" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Ganancia Semana Actual -->
+          <div
+            class="min-w-0 overflow-hidden rounded-3xl border p-8 shadow-[0_8px_24px_rgba(15,23,42,0.06)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.22)]"
+            :class="currentWeekProfit >= 0
+              ? 'border-violet-200 bg-gradient-to-br from-violet-50 to-violet-100/70 dark:border-violet-500/20 dark:bg-gradient-to-br dark:from-[#1e0f3a] dark:to-[#150a2e]'
+              : 'border-red-200 bg-gradient-to-br from-red-50 to-red-100/70 dark:border-red-500/20 dark:bg-gradient-to-br dark:from-[#3a0f0f] dark:to-[#2e0a0a]'"
+          >
+            <div class="flex items-start justify-between gap-4">
+              <div class="min-w-0 flex-1">
+                <p
+                  class="text-xs font-bold uppercase tracking-[0.18em]"
+                  :class="currentWeekProfit >= 0 ? 'text-violet-700 dark:text-violet-400/80' : 'text-red-700 dark:text-red-400/80'"
+                >
+                  Ganancia Semana
+                </p>
+                <p
+                  class="mt-3 text-4xl font-black tracking-tight"
+                  :class="currentWeekProfit >= 0 ? 'text-slate-900 dark:text-white' : 'text-red-600 dark:text-red-400'"
+                >
+                  {{ formatCurrency(currentWeekProfit) }}
+                </p>
+                <div class="mt-3 flex flex-col gap-1">
+                  <span class="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                    Ingresos: {{ formatCurrency(currentWeekIncome) }}
+                  </span>
+                  <span class="text-xs font-semibold text-red-600 dark:text-red-400">
+                    Gastos: {{ formatCurrency(currentWeekExpenses) }}
+                  </span>
+                </div>
+              </div>
+
+              <div
+                class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border bg-white/80"
+                :class="currentWeekProfit >= 0
+                  ? 'border-violet-200 dark:border-violet-400/10 dark:bg-violet-500/15'
+                  : 'border-red-200 dark:border-red-400/10 dark:bg-red-500/15'"
+              >
+                <Banknote
+                  class="h-7 w-7"
+                  :class="currentWeekProfit >= 0 ? 'text-violet-600 dark:text-violet-400' : 'text-red-600 dark:text-red-400'"
+                />
               </div>
             </div>
           </div>
@@ -463,6 +508,7 @@ import {
   Search,
   Receipt,
   DollarSign,
+  Banknote,
 } from 'lucide-vue-next'
 
 const {
@@ -544,6 +590,12 @@ const totalWeeklyProfit = computed(() =>
 const totalWeeklyExpenses = computed(() =>
   weeklyProfitRows.value.reduce((s, r) => s + (r.gastos || 0), 0)
 )
+
+// Current week = first row of weeklyProfitRows (most recent week)
+const currentWeekRow = computed(() => weeklyProfitRows.value[0] || null)
+const currentWeekProfit = computed(() => currentWeekRow.value?.profit || 0)
+const currentWeekIncome = computed(() => currentWeekRow.value?.ingresos || 0)
+const currentWeekExpenses = computed(() => currentWeekRow.value?.gastos || 0)
 
 const weeklyProfitChartSeries = computed(() =>
   (weeklyProfitRows.value || []).map((r: any) => ({

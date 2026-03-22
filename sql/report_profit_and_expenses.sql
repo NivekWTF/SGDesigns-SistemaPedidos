@@ -7,6 +7,8 @@ returns table(period text, ingresos numeric, gastos numeric, profit numeric)
 language plpgsql
 as $$
 begin
+  perform public.require_app_role(array['admin']);
+
   -- If expenses table does not exist, return zeros for gastos
   if to_regclass('public.gastos') is null then
     return query
@@ -50,3 +52,6 @@ begin
   end if;
 end;
 $$;
+
+revoke all on function public.report_profit_and_expenses(integer, text) from public;
+grant execute on function public.report_profit_and_expenses(integer, text) to authenticated;

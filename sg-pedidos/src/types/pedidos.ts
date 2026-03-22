@@ -18,6 +18,7 @@ export interface CrearPedidoInput {
   fecha_entrega?: string // 'YYYY-MM-DD'
   items: PedidoItemInput[]
   anticipo?: number
+  anticipo_metodo?: string
 }
 
 export interface PedidoItem {
@@ -36,6 +37,7 @@ export interface Pedido {
   total: number
   notas?: string | null
   created_at?: string | null
+  updated_at?: string | null
   cliente_id?: string | null
   /** relación opcional cargada desde la tabla `clientes` */
   clientes?: import('./clientes').Cliente | null

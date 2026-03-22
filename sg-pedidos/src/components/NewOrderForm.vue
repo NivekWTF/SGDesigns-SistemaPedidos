@@ -23,6 +23,14 @@
           <label class="label">Anticipo (opcional)</label>
           <input v-model.number="anticipo" type="number" min="0" step="0.01" placeholder="0.00" class="input" />
 
+          <label class="label">Metodo de pago</label>
+          <select v-model="anticipoMetodo" class="input">
+            <option value="Efectivo">Efectivo</option>
+            <option value="Transferencia">Transferencia</option>
+            <option value="Tarjeta">Tarjeta</option>
+            <option value="Otro">Otro</option>
+          </select>
+
           <label class="label">Notas</label>
           <textarea v-model="notas" class="input textarea" placeholder="Instrucciones o detalles adicionales" />
         </div>
@@ -79,6 +87,7 @@ const { clientes, fetchClientes } = useClientes()
 const clienteId = ref('')
 const notas = ref('')
 const anticipo = ref(0)
+const anticipoMetodo = ref('Efectivo')
 const items = ref<PedidoItemInput[]>([
   { producto_id: null, descripcion_personalizada: '', cantidad: 1, precio_unitario: 0 }
 ])
@@ -118,13 +127,15 @@ async function handleCrearPedido(){
     cliente_id: clienteId.value,
     notas: notas.value,
     items: payloadItems,
-    anticipo: anticipo.value > 0 ? anticipo.value : undefined
+    anticipo: anticipo.value > 0 ? anticipo.value : undefined,
+    anticipo_metodo: anticipo.value > 0 ? anticipoMetodo.value : undefined
   })
 
   emit('created')
   clienteId.value = ''
   notas.value = ''
   anticipo.value = 0
+  anticipoMetodo.value = 'Efectivo'
   items.value = [{ producto_id: null, descripcion_personalizada:'', cantidad:1, precio_unitario:0 }]
 }
 
