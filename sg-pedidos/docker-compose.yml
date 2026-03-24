@@ -6,7 +6,7 @@ services:
       dockerfile: Dockerfile
     image: sg-pedidos:latest
     ports:
-      - "8082:80"
+      - "9090:9090"
     restart: unless-stopped
 
   # optional dev service (uncomment to use)
