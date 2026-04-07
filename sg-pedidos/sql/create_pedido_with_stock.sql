@@ -2,8 +2,8 @@
 -- Usage: call with { cliente_id, notas, items: [{ producto_id, cantidad, precio_unitario, descripcion_personalizada }], anticipo, consumos, anticipo_metodo }
 -- consumos (optional): [{ producto_id, cantidad }] — raw materials to decrement from stock (e.g. tabloides consumed by sobreplatos)
 -- This function will:
--- 1) Verify stock for each product (FOR UPDATE)
--- 2) Verify stock for each raw material in consumos
+-- 1) Aggregate total demand per product (items + consumos combined)
+-- 2) Verify stock for each product (FOR UPDATE)
 -- 3) Create a pedido, insert pedido_items, decrement stock, decrement material stock, and optionally insert pago (anticipo)
 -- It will raise an exception and abort the transaction if any product has insufficient stock.
 
@@ -25,6 +25,7 @@ declare
   qty numeric;
   prod_stock numeric;
   prod_nombre text;
+  demand_rec record;
 begin
   perform public.require_app_role(array['admin', 'empleado']);
 
@@ -32,35 +33,47 @@ begin
     raise exception 'items array required';
   end if;
 
-  -- Check availability and lock product rows
-  for it in select * from jsonb_array_elements(items)
+  -- ===================================================================
+  -- Aggregate total demand per product across BOTH items and consumos.
+  -- This prevents the CHECK constraint violation when the same product
+  -- appears in items and consumos, or appears multiple times in either.
+  -- ===================================================================
+  for demand_rec in
+    select agg.pid as producto_id, sum(agg.qty) as total_needed
+    from (
+      -- quantities from items
+      select (elem->>'producto_id')::uuid as pid,
+             (elem->>'cantidad')::numeric  as qty
+      from   jsonb_array_elements(items) as elem
+      where  elem->>'producto_id' is not null
+
+      union all
+
+      -- quantities from consumos
+      select (elem->>'producto_id')::uuid as pid,
+             (elem->>'cantidad')::numeric  as qty
+      from   jsonb_array_elements(coalesce(consumos, '[]'::jsonb)) as elem
+      where  elem->>'producto_id' is not null
+    ) agg
+    group by agg.pid
   loop
-    prod_id := (it->>'producto_id')::uuid;
-    qty := (it->>'cantidad')::numeric;
-    select stock into prod_stock from productos where id = prod_id for update;
+    -- Lock the row and verify availability
+    select stock, nombre into prod_stock, prod_nombre
+    from productos
+    where id = demand_rec.producto_id
+    for update;
+
     if prod_stock is null then
-      raise exception 'Producto % no tiene stock registrado', prod_id;
+      raise exception 'Producto "%" no tiene stock registrado',
+        coalesce(prod_nombre, demand_rec.producto_id::text);
     end if;
-    if prod_stock < qty then
-      raise exception 'Stock insuficiente para producto % (disponible: %, requerido: %)', prod_id, prod_stock, qty;
+
+    if prod_stock < demand_rec.total_needed then
+      raise exception 'Stock insuficiente para "%" (disponible: %, requerido: %)',
+        coalesce(prod_nombre, demand_rec.producto_id::text),
+        prod_stock, demand_rec.total_needed;
     end if;
   end loop;
-
-  -- Check availability of raw materials (consumos)
-  if consumos is not null and jsonb_array_length(consumos) > 0 then
-    for it in select * from jsonb_array_elements(consumos)
-    loop
-      prod_id := (it->>'producto_id')::uuid;
-      qty := (it->>'cantidad')::numeric;
-      select stock, nombre into prod_stock, prod_nombre from productos where id = prod_id for update;
-      if prod_stock is null then
-        raise exception 'Material % no tiene stock registrado', coalesce(prod_nombre, prod_id::text);
-      end if;
-      if prod_stock < qty then
-        raise exception 'Stock insuficiente de material "%" (disponible: %, requerido: %)', coalesce(prod_nombre, prod_id::text), prod_stock, qty;
-      end if;
-    end loop;
-  end if;
 
   -- compute total
   insert into pedidos (cliente_id, notas, total)

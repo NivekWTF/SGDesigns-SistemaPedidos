@@ -1,5 +1,5 @@
 <template>
-  <div class="modal-overlay" @click.self="close">
+  <div class="modal-overlay">
     <div class="wizard-card">
       <header class="wizard-header">
         <div class="wizard-steps">
