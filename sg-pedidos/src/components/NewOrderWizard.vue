@@ -100,6 +100,21 @@
         <!-- STEP 3: Review -->
         <div v-if="step === 3" class="step-panel">
           <h3>Revisión y pago</h3>
+
+          <!-- Stock error banner -->
+          <div v-if="stockErrors.length" class="stock-error-banner">
+            <div class="stock-error-header">
+              <span class="stock-error-icon">⚠️</span>
+              <strong>Stock insuficiente</strong>
+            </div>
+            <p class="stock-error-desc">No se puede crear el pedido. Los siguientes productos no tienen stock suficiente:</p>
+            <ul class="stock-error-list">
+              <li v-for="(err, i) in stockErrors" :key="i">
+                <strong>{{ err.nombre }}</strong> — Disponible: <span class="stock-available">{{ err.disponible }}</span>, Requerido: <span class="stock-required">{{ err.requerido }}</span>
+              </li>
+            </ul>
+          </div>
+
           <div class="review-section">
             <div>Cliente: <strong>{{ selectedClient?.nombre }}</strong></div>
             <div class="review-items">
@@ -141,7 +156,9 @@
             </div>
 
             <div class="wizard-actions">
-              <button class="btn-primary" @click="confirmOrder">Confirmar pedido</button>
+              <button class="btn-primary" @click="confirmOrder" :disabled="submitting">
+                {{ submitting ? 'Guardando...' : 'Confirmar pedido' }}
+              </button>
               <button class="btn-ghost" @click="prevStep">Atrás</button>
             </div>
           </div>
@@ -158,6 +175,7 @@ import { useProductos } from '../composables/useProductos'
 import { usePedidos } from '../composables/usePedidos'
 import { supabase } from '../lib/supabase'
 import { useFormat } from '../composables/useFormat'
+import { getMaterialRules } from '../lib/costs'
 
 const emit = defineEmits(['created','close'])
 const props = defineProps<{ initialPedido?: any | null }>()
@@ -184,6 +202,8 @@ const items = ref<Array<any>>([])
 const anticipo = ref(0)
 const anticipoMetodo = ref('Efectivo')
 const notas = ref('')
+const submitting = ref(false)
+const stockErrors = ref<Array<{ nombre: string; disponible: number; requerido: number }>>([])
 
 onMounted(async () => {
   await fetchClientes()
@@ -278,39 +298,125 @@ function removeItem(i:number){ items.value.splice(i,1) }
 
 const total = computed(() => items.value.reduce((acc, it) => acc + (it.cantidad * (it.precio_unitario||0)), 0))
 
+/**
+ * Validate stock availability before submitting the order.
+ * Aggregates demand from items + auto-computed material consumos,
+ * then compares against current product stock.
+ * Returns an array of errors (empty = all OK).
+ */
+function validateStock(): Array<{ nombre: string; disponible: number; requerido: number }> {
+  const demand: Record<string, { nombre: string; total: number }> = {}
+
+  // Build a lookup map: producto_id -> product object
+  const prodMap: Record<string, any> = {}
+  for (const p of productos.value) {
+    prodMap[p.id] = p
+  }
+
+  // 1) Accumulate demand from order items
+  for (const it of items.value) {
+    if (!it.producto_id) continue
+    if (!demand[it.producto_id]) {
+      const prod = prodMap[it.producto_id]
+      demand[it.producto_id] = { nombre: prod?.nombre || it.nombre || it.producto_id, total: 0 }
+    }
+    demand[it.producto_id].total += Number(it.cantidad) || 0
+  }
+
+  // 2) Accumulate demand from material consumos (same logic as crearPedido in usePedidos.ts)
+  for (const it of items.value) {
+    if (!it.producto_id) continue
+    const prod = prodMap[it.producto_id]
+    const nombre = prod?.nombre || it.nombre || ''
+    const rules = getMaterialRules(nombre)
+    for (const rule of rules) {
+      // Find the material product by pattern matching
+      const material = productos.value.find(
+        (p: any) => (p.nombre || '').toLowerCase().includes(rule.materialPattern.toLowerCase())
+      )
+      if (material) {
+        const consumed = Math.ceil((Number(it.cantidad) || 0) / rule.unitsPerMaterial)
+        if (!demand[material.id]) {
+          demand[material.id] = { nombre: material.nombre, total: 0 }
+        }
+        demand[material.id].total += consumed
+      }
+    }
+  }
+
+  // 3) Compare demand against available stock
+  const errors: Array<{ nombre: string; disponible: number; requerido: number }> = []
+  for (const [prodId, info] of Object.entries(demand)) {
+    const prod = prodMap[prodId]
+    const available = typeof prod?.stock === 'number' ? prod.stock : null
+    if (available !== null && available < info.total) {
+      errors.push({
+        nombre: info.nombre,
+        disponible: available,
+        requerido: info.total
+      })
+    }
+  }
+
+  return errors
+}
+
 async function confirmOrder(){
   if(!selectedClient.value){ alert('Selecciona un cliente'); step.value = 1; return }
   if(items.value.length === 0){ alert('Añade al menos un item'); step.value = 2; return }
 
-  const payloadItems = items.value.map(it=>({ producto_id: it.producto_id, cantidad: it.cantidad, precio_unitario: it.precio_unitario, descripcion_personalizada: it.descripcion || '' }))
-
-  if (props.initialPedido && props.initialPedido.id) {
-    // edit existing pedido
-    await actualizarPedidoCompleto(props.initialPedido.id, { notas: notas.value, items: payloadItems })
-    // if an anticipo value was provided while editing, insert it as a pago (anticipo)
-    if (anticipo.value && Number(anticipo.value) > 0) {
-      try {
-        const { error: pagoErr } = await supabase.from('pagos').insert([{ pedido_id: props.initialPedido.id, monto: Number(anticipo.value), metodo: anticipoMetodo.value, es_anticipo: true, creado_en: new Date().toISOString() }])
-        if (pagoErr) console.warn('No se pudo insertar pago (anticipo):', pagoErr)
-      } catch (e) {
-        console.warn('Error al insertar pago (anticipo):', e)
-      }
-    }
-  } else {
-    await crearPedido({
-      cliente_id: selectedClient.value.id,
-      notas: notas.value,
-      items: payloadItems,
-      anticipo: anticipo.value > 0 ? anticipo.value : undefined,
-      anticipo_metodo: anticipo.value > 0 ? anticipoMetodo.value : undefined
-    })
-    // El stock ya fue descontado atómicamente por el RPC create_pedido_with_stock.
-    // Refrescamos la lista local de productos para reflejar los nuevos niveles de stock.
-    await fetchProductos()
+  // --- UI-level stock validation ---
+  stockErrors.value = []
+  // Refresh products to get latest stock levels
+  await fetchProductos()
+  const errors = validateStock()
+  if (errors.length > 0) {
+    stockErrors.value = errors
+    return
   }
 
-  emit('created')
-  close()
+  submitting.value = true
+  try {
+    const payloadItems = items.value.map(it=>({ producto_id: it.producto_id, cantidad: it.cantidad, precio_unitario: it.precio_unitario, descripcion_personalizada: it.descripcion || '' }))
+
+    if (props.initialPedido && props.initialPedido.id) {
+      // edit existing pedido
+      await actualizarPedidoCompleto(props.initialPedido.id, { notas: notas.value, items: payloadItems })
+      // if an anticipo value was provided while editing, insert it as a pago (anticipo)
+      if (anticipo.value && Number(anticipo.value) > 0) {
+        try {
+          const { error: pagoErr } = await supabase.from('pagos').insert([{ pedido_id: props.initialPedido.id, monto: Number(anticipo.value), metodo: anticipoMetodo.value, es_anticipo: true, creado_en: new Date().toISOString() }])
+          if (pagoErr) console.warn('No se pudo insertar pago (anticipo):', pagoErr)
+        } catch (e) {
+          console.warn('Error al insertar pago (anticipo):', e)
+        }
+      }
+    } else {
+      await crearPedido({
+        cliente_id: selectedClient.value.id,
+        notas: notas.value,
+        items: payloadItems,
+        anticipo: anticipo.value > 0 ? anticipo.value : undefined,
+        anticipo_metodo: anticipo.value > 0 ? anticipoMetodo.value : undefined
+      })
+      // El stock ya fue descontado atómicamente por el RPC create_pedido_with_stock.
+      // Refrescamos la lista local de productos para reflejar los nuevos niveles de stock.
+      await fetchProductos()
+    }
+
+    emit('created')
+    close()
+  } catch (err: any) {
+    // If the DB still rejects (race condition), show a friendly message
+    const msg = err?.message || String(err)
+    if (msg.toLowerCase().includes('stock')) {
+      stockErrors.value = [{ nombre: 'Error del servidor', disponible: 0, requerido: 0 }]
+    } else {
+      alert('Error al crear pedido: ' + msg)
+    }
+  } finally {
+    submitting.value = false
+  }
 }
 
 function close(){ emit('close') }
@@ -340,6 +446,7 @@ function close(){ emit('close') }
 .item-cant{width:60px;text-align:center}
 .item-price{width:120px;text-align:right}
 .btn-primary{background:#059669;color:#fff;padding:8px 12px;border-radius:8px;border:none}
+.btn-primary:disabled{opacity:0.6;cursor:not-allowed}
 .btn-outline{background:#fff;border:1px solid #e6eef2;padding:8px 10px;border-radius:8px}
 .btn-ghost{background:transparent;border:1px solid #e6eef2;padding:8px 10px;border-radius:8px}
 .btn-danger{background:#fff;border:1px solid #ffdddd;color:#ef4444;padding:6px 8px;border-radius:8px}
@@ -354,6 +461,20 @@ function close(){ emit('close') }
 .pagination-row{display:flex;justify-content:space-between;align-items:center;margin-top:12px}
 .pagination-info{color:#475569;font-size:0.95rem}
 .pagination-controls{display:flex;align-items:center;gap:8px}
+
+/* Stock error banner */
+.stock-error-banner{background:linear-gradient(135deg,#fef2f2,#fff1f2);border:1px solid #fca5a5;border-left:4px solid #ef4444;border-radius:10px;padding:16px 20px;margin-bottom:16px;animation:shake 0.4s ease-in-out}
+.stock-error-header{display:flex;align-items:center;gap:8px;font-size:1.05rem;color:#b91c1c;margin-bottom:6px}
+.stock-error-icon{font-size:1.3rem}
+.stock-error-desc{margin:0 0 10px;color:#7f1d1d;font-size:0.92rem}
+.stock-error-list{margin:0;padding-left:20px;list-style:none}
+.stock-error-list li{position:relative;padding:6px 0;color:#991b1b;font-size:0.93rem;border-bottom:1px dashed #fecaca}
+.stock-error-list li:last-child{border-bottom:none}
+.stock-error-list li::before{content:'✕';position:absolute;left:-18px;color:#ef4444;font-weight:700}
+.stock-available{color:#16a34a;font-weight:700}
+.stock-required{color:#dc2626;font-weight:700}
+
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
 
 @media (max-width: 768px) {
   .wizard-card{max-width:100vw;border-radius:0}
@@ -403,4 +524,8 @@ function close(){ emit('close') }
 :is(.dark) .pagination-info{color:#94a3b8}
 :is(.dark) .notes-row label{color:#94a3b8}
 :is(.dark) .anticipo-row label{color:#94a3b8}
+:is(.dark) .stock-error-banner{background:linear-gradient(135deg,#1a0505,#200808);border-color:#7f1d1d;border-left-color:#ef4444}
+:is(.dark) .stock-error-header{color:#fca5a5}
+:is(.dark) .stock-error-desc{color:#fecaca}
+:is(.dark) .stock-error-list li{color:#fecaca;border-bottom-color:#7f1d1d}
 </style>
