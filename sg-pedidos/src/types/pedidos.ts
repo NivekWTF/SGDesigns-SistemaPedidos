@@ -30,6 +30,17 @@ export interface PedidoItem {
   subtotal?: number | null
   productos?: import('./productos').Producto | null
 }
+
+export interface PedidoArchivo {
+  id: string
+  pedido_id: string
+  url: string
+  nombre_archivo: string
+  tipo?: string | null
+  tamanio_bytes?: number | null
+  created_at?: string | null
+}
+
 export interface Pedido {
   id: string
   folio?: string | null
@@ -42,4 +53,6 @@ export interface Pedido {
   /** relación opcional cargada desde la tabla `clientes` */
   clientes?: import('./clientes').Cliente | null
   pedido_items?: PedidoItem[] | null
+  /** archivos adjuntos (fotos de referencia, diseños, etc.) */
+  pedido_archivos?: PedidoArchivo[] | null
 }

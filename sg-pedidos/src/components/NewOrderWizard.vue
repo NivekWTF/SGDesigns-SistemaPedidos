@@ -135,9 +135,53 @@
               <div class="rest-amount">${{ Math.max(0, total - (anticipo || 0)).toFixed(2) }}</div>
             </div>
 
-            <div class="notes-row">
-              <label>Notas adicionales</label>
-              <textarea v-model="notas" class="textarea" placeholder="Descripción detallada del pedido, indicaciones de impresión, acabados..."></textarea>
+            <div class="notes-card">
+              <div class="notes-card__header">
+                <span class="notes-card__icon">📝</span>
+                <span class="notes-card__title">Indicaciones del pedido</span>
+                <span class="notes-card__counter" :class="{ 'notes-card__counter--warn': notas.length > 450 }">{{ notas.length }} / 500</span>
+              </div>
+
+              <div class="quick-tags">
+                <div class="quick-tags__label">Etiquetas rápidas</div>
+                <div class="quick-tags__grid">
+                  <button
+                    v-for="tag in quickTags"
+                    :key="tag.text"
+                    :class="['qtag', { 'qtag--active': activeQuickTags.has(tag.text) }]"
+                    @click="toggleTag(tag)"
+                    type="button"
+                  >
+                    <span class="qtag__emoji">{{ tag.emoji }}</span>
+                    <span>{{ tag.text }}</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="notes-textarea-wrap">
+                <textarea
+                  ref="notesTextarea"
+                  v-model="notas"
+                  class="notes-textarea"
+                  maxlength="500"
+                  rows="3"
+                  placeholder="Ej: Imprimir en vinil adhesivo blanco, corte a 5cm, entregar antes del viernes..."
+                  @input="autoResize"
+                ></textarea>
+              </div>
+            </div>
+
+            <div class="attachments-row">
+              <label>📎 Archivos de referencia</label>
+              <p class="attachments-hint">Sube fotos de referencia, logos del cliente, diseños o archivos relevantes para este pedido.</p>
+              <FileUploader
+                bucket="pedido-attachments"
+                :folder="attachmentFolder"
+                :maxFiles="10"
+                :existingFiles="existingAttachments"
+                @uploaded="onFileUploaded"
+                @deleted="onFileDeleted"
+              />
             </div>
 
             <div class="anticipo-row">
@@ -176,6 +220,7 @@ import { usePedidos } from '../composables/usePedidos'
 import { supabase } from '../lib/supabase'
 import { useFormat } from '../composables/useFormat'
 import { getMaterialRules } from '../lib/costs'
+import FileUploader from './FileUploader.vue'
 
 const emit = defineEmits(['created','close'])
 const props = defineProps<{ initialPedido?: any | null }>()
@@ -204,6 +249,69 @@ const anticipoMetodo = ref('Efectivo')
 const notas = ref('')
 const submitting = ref(false)
 const stockErrors = ref<Array<{ nombre: string; disponible: number; requerido: number }>>([])
+const notesTextarea = ref<HTMLTextAreaElement | null>(null)
+
+// --- Quick tags for notes ---
+const quickTags = [
+  { emoji: '🔥', text: 'Urgente' },
+  { emoji: '🖨️', text: 'Doble cara' },
+  { emoji: '✨', text: 'Acabado brillante' },
+  { emoji: '🌫️', text: 'Acabado mate' },
+  { emoji: '✂️', text: 'Corte especial' },
+  { emoji: '🎨', text: 'Full color' },
+  { emoji: '📐', text: 'Tamaño personalizado' },
+  { emoji: '🎁', text: 'Envolver para regalo' },
+  { emoji: '📞', text: 'Llamar antes de entregar' },
+  { emoji: '🚚', text: 'Envío a domicilio' },
+]
+
+const activeQuickTags = ref<Set<string>>(new Set())
+
+function toggleTag(tag: { emoji: string; text: string }) {
+  const label = `${tag.emoji} ${tag.text}`
+  if (activeQuickTags.value.has(tag.text)) {
+    activeQuickTags.value.delete(tag.text)
+    notas.value = notas.value.replace(label, '').replace(/\s{2,}/g, ' ').replace(/^[,;·\s]+|[,;·\s]+$/g, '').trim()
+  } else {
+    activeQuickTags.value.add(tag.text)
+    const sep = notas.value.trim() ? ' · ' : ''
+    notas.value = (notas.value.trim() + sep + label).slice(0, 500)
+  }
+}
+
+function autoResize() {
+  const el = notesTextarea.value
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = Math.min(el.scrollHeight, 200) + 'px'
+}
+
+// --- File attachments ---
+interface StagedFile {
+  url: string
+  nombre_archivo: string
+  tipo?: string | null
+  tamanio_bytes?: number | null
+}
+const stagedFiles = ref<StagedFile[]>([])
+const existingAttachments = ref<StagedFile[]>([])
+const attachmentFolder = computed(() => {
+  if (props.initialPedido?.id) return props.initialPedido.id
+  return 'temp_' + Date.now()
+})
+
+function onFileUploaded(file: StagedFile) {
+  stagedFiles.value.push(file)
+}
+
+function onFileDeleted(file: StagedFile) {
+  stagedFiles.value = stagedFiles.value.filter(f => f.url !== file.url)
+  existingAttachments.value = existingAttachments.value.filter(f => f.url !== file.url)
+  // Also delete from DB if it has an id
+  if ((file as any).id) {
+    supabase.from('pedido_archivos').delete().eq('id', (file as any).id).then(() => {})
+  }
+}
 
 onMounted(async () => {
   await fetchClientes()
@@ -392,7 +500,7 @@ async function confirmOrder(){
         }
       }
     } else {
-      await crearPedido({
+      const created = await crearPedido({
         cliente_id: selectedClient.value.id,
         notas: notas.value,
         items: payloadItems,
@@ -402,6 +510,19 @@ async function confirmOrder(){
       // El stock ya fue descontado atómicamente por el RPC create_pedido_with_stock.
       // Refrescamos la lista local de productos para reflejar los nuevos niveles de stock.
       await fetchProductos()
+
+      // Save file attachment records to pedido_archivos
+      const pedidoId = created?.id
+      if (pedidoId && stagedFiles.value.length > 0) {
+        const archivos = stagedFiles.value.map(f => ({
+          pedido_id: pedidoId,
+          url: f.url,
+          nombre_archivo: f.nombre_archivo,
+          tipo: f.tipo || null,
+          tamanio_bytes: f.tamanio_bytes || null
+        }))
+        await supabase.from('pedido_archivos').insert(archivos)
+      }
     }
 
     emit('created')
@@ -433,6 +554,29 @@ function close(){ emit('close') }
 .step-actions{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px}
 .input{padding:8px 10px;border:1px solid #e6eef2;border-radius:8px}
 .textarea{min-height:84px;padding:10px;border:1px solid #e6eef2;border-radius:8px;resize:vertical}
+
+/* Notes card */
+.notes-card{border:1px solid #e2e8f0;border-radius:12px;padding:16px;background:linear-gradient(135deg,#f8fafc 0%,#f0fdfa 100%);transition:border-color 0.2s}
+.notes-card:focus-within{border-color:#0ea5a4;box-shadow:0 0 0 3px rgba(14,165,164,0.08)}
+.notes-card__header{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.notes-card__icon{font-size:1.15rem}
+.notes-card__title{font-weight:700;font-size:0.95rem;color:#1e293b;flex:1}
+.notes-card__counter{font-size:0.78rem;color:#94a3b8;font-weight:500;font-variant-numeric:tabular-nums}
+.notes-card__counter--warn{color:#f59e0b;font-weight:600}
+
+.quick-tags{margin-bottom:12px}
+.quick-tags__label{font-size:0.78rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px}
+.quick-tags__grid{display:flex;flex-wrap:wrap;gap:6px}
+.qtag{display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border-radius:20px;border:1px solid #e2e8f0;background:#fff;color:#475569;font-size:0.82rem;font-weight:500;cursor:pointer;transition:all 0.18s ease;user-select:none}
+.qtag:hover{border-color:#0ea5a4;background:#f0fdfa;transform:translateY(-1px)}
+.qtag--active{background:linear-gradient(135deg,#0ea5a4,#0d9488);color:#fff;border-color:transparent;box-shadow:0 2px 8px rgba(14,165,164,0.25)}
+.qtag--active:hover{filter:brightness(1.08)}
+.qtag__emoji{font-size:0.9rem;line-height:1}
+
+.notes-textarea-wrap{position:relative}
+.notes-textarea{width:100%;min-height:64px;max-height:200px;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;resize:none;font-family:inherit;font-size:0.9rem;line-height:1.5;color:#1e293b;background:#fff;transition:border-color 0.2s;box-sizing:border-box;overflow-y:auto}
+.notes-textarea::placeholder{color:#94a3b8}
+.notes-textarea:focus{outline:none;border-color:#0ea5a4}
 .cards-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
 .card{padding:12px;border-radius:8px;border:1px solid #f1f5f9;background:#fff;cursor:pointer}
 .card.selected{border-color:#0ea5a4;box-shadow:0 6px 18px rgba(14,165,164,0.08)}
@@ -457,6 +601,9 @@ function close(){ emit('close') }
 .review-rest{display:flex;justify-content:space-between;font-weight:700;margin-top:6px}
 .rest-amount{color:#0b6f4b;font-weight:800}
 .anticipo-row{display:flex;gap:12px;align-items:center}
+.attachments-row{display:flex;flex-direction:column;gap:6px}
+.attachments-row label{font-weight:600;color:#334155;font-size:0.95rem}
+.attachments-hint{margin:0;color:#64748b;font-size:0.85rem}
 .wizard-actions{display:flex;gap:8px;justify-content:flex-end}
 .pagination-row{display:flex;justify-content:space-between;align-items:center;margin-top:12px}
 .pagination-info{color:#475569;font-size:0.95rem}
@@ -522,8 +669,22 @@ function close(){ emit('close') }
 :is(.dark) .total-amount{color:#e2e8f0}
 :is(.dark) .pagination-row{color:#94a3b8}
 :is(.dark) .pagination-info{color:#94a3b8}
-:is(.dark) .notes-row label{color:#94a3b8}
+
 :is(.dark) .anticipo-row label{color:#94a3b8}
+:is(.dark) .attachments-row label{color:#94a3b8}
+:is(.dark) .attachments-hint{color:#64748b}
+:is(.dark) .notes-card{background:linear-gradient(135deg,#0f1729 0%,#0c2524 100%);border-color:#1e293b}
+:is(.dark) .notes-card:focus-within{border-color:#0ea5a4;box-shadow:0 0 0 3px rgba(14,165,164,0.12)}
+:is(.dark) .notes-card__title{color:#e2e8f0}
+:is(.dark) .notes-card__counter{color:#64748b}
+:is(.dark) .notes-card__counter--warn{color:#f59e0b}
+:is(.dark) .quick-tags__label{color:#64748b}
+:is(.dark) .qtag{background:#0f1729;border-color:#334155;color:#94a3b8}
+:is(.dark) .qtag:hover{border-color:#0ea5a4;background:#0c2e2d}
+:is(.dark) .qtag--active{background:linear-gradient(135deg,#0ea5a4,#0d9488);color:#fff;border-color:transparent}
+:is(.dark) .notes-textarea{background:#0f1729;border-color:#334155;color:#e2e8f0}
+:is(.dark) .notes-textarea::placeholder{color:#475569}
+:is(.dark) .notes-textarea:focus{border-color:#0ea5a4}
 :is(.dark) .stock-error-banner{background:linear-gradient(135deg,#1a0505,#200808);border-color:#7f1d1d;border-left-color:#ef4444}
 :is(.dark) .stock-error-header{color:#fca5a5}
 :is(.dark) .stock-error-desc{color:#fecaca}

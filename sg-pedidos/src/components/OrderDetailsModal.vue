@@ -23,6 +23,42 @@
           <div class="notes">{{ pedido.notas }}</div>
         </div>
 
+        <!-- Archivos adjuntos -->
+        <div class="attachments-block">
+          <h4>📎 Archivos adjuntos</h4>
+          <div v-if="archivos.length" class="attachments-gallery">
+            <div v-for="arch in archivos" :key="arch.id" class="attach-thumb" @click="openPreview(arch)">
+              <img v-if="isImage(arch.tipo || arch.nombre_archivo)" :src="arch.url" :alt="arch.nombre_archivo" />
+              <div v-else class="attach-icon">📄</div>
+              <div class="attach-name">{{ arch.nombre_archivo }}</div>
+              <button class="attach-delete" @click.stop="deleteArchivo(arch)" title="Eliminar">✕</button>
+            </div>
+          </div>
+          <div v-else class="no-attachments">Sin archivos adjuntos</div>
+          <div class="add-files-section" v-if="!showUploader">
+            <button class="btn-add-files" @click="showUploader = true">+ Agregar archivos</button>
+          </div>
+          <div v-if="showUploader" class="uploader-section">
+            <FileUploader
+              bucket="pedido-attachments"
+              :folder="pedido.id"
+              :maxFiles="10"
+              @uploaded="onFileUploaded"
+              @deleted="onFileDeletedFromUploader"
+            />
+          </div>
+        </div>
+
+        <!-- Lightbox -->
+        <Teleport to="body">
+          <div v-if="lightboxUrl" class="lightbox-overlay" @click="lightboxUrl = null">
+            <div class="lightbox-content" @click.stop>
+              <img :src="lightboxUrl" alt="Preview" />
+              <button class="lightbox-close" @click="lightboxUrl = null">✕</button>
+            </div>
+          </div>
+        </Teleport>
+
         <div class="items-block">
           <h4>Items</h4>
           <div v-for="(it, idx) in pedido.pedido_items || []" :key="it.id || idx" class="detail-item">
@@ -93,10 +129,13 @@
 
 <script setup lang="ts">
 import type { Pedido } from '../types'
+import type { PedidoArchivo } from '../types/pedidos'
 import type { Pago } from '../types/pagos'
 import { ref, computed, onMounted } from 'vue'
 import { supabase } from '../lib/supabase'
 import { usePedidos } from '../composables/usePedidos'
+import { useStorage } from '../composables/useStorage'
+import FileUploader from './FileUploader.vue'
 
 const props = defineProps<{ pedido: Pedido }>()
 const emit = defineEmits(['close', 'updated'])
@@ -107,6 +146,11 @@ const selectedMethod = ref('')
 const paying = ref(false)
 
 const { fetchPedidoById, printTicket, registrarPago } = usePedidos()
+const { deleteFile, extractPathFromUrl } = useStorage()
+
+const archivos = ref<PedidoArchivo[]>([])
+const showUploader = ref(false)
+const lightboxUrl = ref<string | null>(null)
 
 function close(){ emit('close') }
 
@@ -141,7 +185,51 @@ onMounted(async ()=>{
   if (!pedido || !pedido.id) return
   const { data, error } = await supabase.from('pagos').select('*').eq('pedido_id', pedido.id).order('creado_en', { ascending: true })
   if (!error && data) pagos.value = data as Pago[]
+
+  // Load attached files
+  const { data: files } = await supabase
+    .from('pedido_archivos')
+    .select('*')
+    .eq('pedido_id', pedido.id)
+    .order('created_at', { ascending: true })
+  if (files) archivos.value = files as PedidoArchivo[]
 })
+
+function isImage(nameOrType: string): boolean {
+  const lower = (nameOrType || '').toLowerCase()
+  return /^image\//.test(lower) || /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(lower)
+}
+
+function openPreview(arch: PedidoArchivo) {
+  if (isImage(arch.tipo || arch.nombre_archivo)) {
+    lightboxUrl.value = arch.url
+  } else {
+    window.open(arch.url, '_blank')
+  }
+}
+
+async function deleteArchivo(arch: PedidoArchivo) {
+  if (!confirm(`\u00bfEliminar "${arch.nombre_archivo}"?`)) return
+  const path = extractPathFromUrl(arch.url, 'pedido-attachments')
+  await deleteFile('pedido-attachments', path)
+  await supabase.from('pedido_archivos').delete().eq('id', arch.id)
+  archivos.value = archivos.value.filter(a => a.id !== arch.id)
+}
+
+async function onFileUploaded(file: any) {
+  const { data } = await supabase.from('pedido_archivos').insert({
+    pedido_id: pedido.id,
+    url: file.url,
+    nombre_archivo: file.nombre_archivo,
+    tipo: file.tipo || null,
+    tamanio_bytes: file.tamanio_bytes || null
+  }).select().single()
+  if (data) archivos.value.push(data as PedidoArchivo)
+}
+
+function onFileDeletedFromUploader(file: any) {
+  archivos.value = archivos.value.filter(a => a.url !== file.url)
+}
 
 async function handlePagarCompleto() {
   if (!selectedMethod.value || paying.value) return
@@ -248,4 +336,38 @@ async function reimprimirTicket() {
 :is(.dark) .pay-methods .pay-option:hover{border-color:#3b82f6;background:#1e3a5f}
 :is(.dark) .pay-methods .pay-option-active{border-color:#3b82f6;background:#1e3a5f}
 :is(.dark) .btn-ghost{border-color:#334155;color:#cbd5e1}
+
+/* Attachments */
+.attachments-block{border:1px solid #f1f5f9;padding:12px;border-radius:8px}
+.attachments-block h4{margin:0 0 10px;font-size:0.95rem}
+.attachments-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:10px}
+.attach-thumb{position:relative;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;cursor:pointer;background:#f8fafc;transition:box-shadow 0.15s}
+.attach-thumb:hover{box-shadow:0 4px 12px rgba(14,165,164,0.12)}
+.attach-thumb img{width:100%;height:72px;object-fit:cover;display:block}
+.attach-icon{width:100%;height:72px;display:flex;align-items:center;justify-content:center;font-size:1.8rem;background:#f1f5f9}
+.attach-name{padding:4px 6px;font-size:0.72rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#475569;font-weight:600}
+.attach-delete{position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;border:none;background:rgba(239,68,68,0.85);color:#fff;font-size:0.65rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.15s}
+.attach-thumb:hover .attach-delete{opacity:1}
+.no-attachments{color:#94a3b8;font-size:0.88rem;padding:8px 0}
+.add-files-section{margin-top:8px}
+.btn-add-files{background:#f0fdfa;border:1px dashed #0ea5a4;color:#0ea5a4;padding:8px 14px;border-radius:8px;font-weight:600;cursor:pointer;font-size:0.88rem;transition:all 0.15s}
+.btn-add-files:hover{background:#ccfbf1}
+.uploader-section{margin-top:10px}
+
+/* Lightbox */
+.lightbox-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:100;padding:24px;animation:fadeIn 0.2s ease}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.lightbox-content{position:relative;max-width:90vw;max-height:90vh}
+.lightbox-content img{max-width:100%;max-height:85vh;border-radius:8px;box-shadow:0 16px 48px rgba(0,0,0,0.4)}
+.lightbox-close{position:absolute;top:-12px;right:-12px;width:32px;height:32px;border-radius:50%;border:none;background:#fff;color:#111;font-size:1rem;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.2)}
+
+/* Dark attachments */
+:is(.dark) .attachments-block{border-color:#1e293b}
+:is(.dark) .attachments-block h4{color:#e2e8f0}
+:is(.dark) .attach-thumb{background:#0f1729;border-color:#1e293b}
+:is(.dark) .attach-icon{background:#111c2e}
+:is(.dark) .attach-name{color:#94a3b8}
+:is(.dark) .no-attachments{color:#64748b}
+:is(.dark) .btn-add-files{background:#0c2e2d;border-color:#0ea5a4;color:#5eead4}
+:is(.dark) .btn-add-files:hover{background:#0f3b3a}
 </style>
