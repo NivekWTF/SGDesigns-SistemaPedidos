@@ -13,8 +13,6 @@ services:
         - VITE_BUSINESS_LOGO_URL=${VITE_BUSINESS_LOGO_URL}
         - VITE_BUSINESS_SOCIALS=${VITE_BUSINESS_SOCIALS}
     image: sg-pedidos:latest
-    ports:
-      - "8086:80"
     restart: unless-stopped
 
   # optional dev service (uncomment to use)
