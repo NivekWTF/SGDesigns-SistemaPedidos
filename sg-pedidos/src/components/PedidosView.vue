@@ -554,16 +554,17 @@ async function borrar(id: string) {
   border-radius:12px;
   overflow-x:auto; /* Fix para que la tabla no rompa el width de la pagina completa */
   box-shadow:0 2px 8px rgba(0,0,0,0.02);
+  width:100%;
 }
 .orders-table { 
   overflow:visible;
   position:relative;
-  min-width:900px;
+  min-width:1150px;
   padding-bottom:120px; /* Espacio para los menus desplegables */
 }
 .orders-row { 
   display:grid;
-  grid-template-columns: 1.2fr 2.5fr 1.5fr auto 1fr 1fr 120px;
+  grid-template-columns: 1.2fr 2.5fr 1.5fr auto 1fr 1fr 240px;
   align-items:center;
   padding:14px 16px;
   border-bottom:1px solid #f1f5f9;
@@ -641,9 +642,10 @@ async function borrar(id: string) {
 :is(.dark) .search input{background:#0f1729;border-color:#334155;color:#e2e8f0}
 :is(.dark) .search input::placeholder{color:#475569}
 :is(.dark) .input{background:#0f1729;border-color:#334155;color:#e2e8f0}
-:is(.dark) .orders-table-wrapper{border-top-color:#1e293b}
-:is(.dark) .orders-row{border-bottom-color:#1e293b;color:#cbd5e1}
-:is(.dark) .orders-row.header{background:#0f1729;color:#94a3b8}
+:is(.dark) .orders-table-wrapper{background:#111c2e;border-color:#1e293b;}
+:is(.dark) .orders-row{border-bottom-color:#1e293b;color:#cbd5e1;}
+:is(.dark) .orders-row:hover:not(.header){background:#1e293b;}
+:is(.dark) .orders-row.header{background:#0f1729;border-bottom-color:#1e293b;color:#94a3b8;}
 :is(.dark) .order-id .id-main{color:#e2e8f0}
 :is(.dark) .id-sub{color:#94a3b8}
 :is(.dark) .description{color:#94a3b8}
