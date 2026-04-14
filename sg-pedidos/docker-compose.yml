@@ -4,6 +4,14 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+        - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
+        - VITE_BUSINESS_NAME=${VITE_BUSINESS_NAME}
+        - VITE_BUSINESS_ADDRESS=${VITE_BUSINESS_ADDRESS}
+        - VITE_BUSINESS_PHONE=${VITE_BUSINESS_PHONE}
+        - VITE_BUSINESS_LOGO_URL=${VITE_BUSINESS_LOGO_URL}
+        - VITE_BUSINESS_SOCIALS=${VITE_BUSINESS_SOCIALS}
     image: sg-pedidos:latest
     ports:
       - "8086:80"

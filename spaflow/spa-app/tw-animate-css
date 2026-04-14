@@ -1,0 +1,3 @@
+/* placeholder for tw-animate-css import (created to satisfy postcss-import resolution)
+   The real animations are provided by the 'tailwindcss-animate' plugin in tailwind.config.cjs
+*/

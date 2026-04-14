@@ -1,0 +1,21 @@
+version: '3.8'
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: spaflow:latest
+    ports:
+      - "8087:80"
+    restart: unless-stopped
+
+  # optional dev service (uncomment to use)
+  # dev:
+  #   image: node:18-alpine
+  #   working_dir: /app
+  #   volumes:
+  #     - ./:/app
+  #     - /app/node_modules
+  #   command: sh -c "npm ci && npm run dev -- --host 0.0.0.0"
+  #   ports:
+  #     - "5173:5173"

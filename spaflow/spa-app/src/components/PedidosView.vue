@@ -122,15 +122,15 @@
 
     <section class="mt-8 list-section">
       <div v-if="infoMsg" class="info-toast">{{ infoMsg }}</div>
-      <h2 style="margin-bottom: 16px;">Listado de pedidos</h2>
+      <h2>Listado de pedidos</h2>
 
-      <div class="list-controls">
-        <div class="filters-row">
-          <div class="search">
+      <div class="list-controls" style="display:flex;gap:12px;align-items:center;margin-top:12px;margin-bottom:8px">
+        <div style="flex:1;display:flex;gap:12px;align-items:center">
+          <div class="search" style="flex:1">
             <input v-model="searchTerm" placeholder="Buscar por nombre, ID de pedido..." />
           </div>
 
-          <div class="status-select-wrap">
+          <div>
             <select v-model="statusFilter" class="input">
               <option value="ALL">Todos los estados</option>
               <option value="PENDIENTE">PENDIENTE</option>
@@ -141,22 +141,22 @@
             </select>
           </div>
 
-          <div class="date-filters">
+            <div style="display:flex;gap:8px;align-items:center">
             <input type="date" v-model="startDate" class="input" />
             <span style="color:#666">a</span>
             <input type="date" v-model="endDate" class="input" />
           </div>
         </div>
 
-        <div class="actions-row">
+        <div style="display:flex;gap:8px;align-items:center">
           <button type="button" class="btn-ghost" @click="toggleMoreFilters">Más filtros</button>
           <button type="button" class="btn-primary" @click="openNewOrder">+ Nuevo pedido</button>
         </div>
       </div>
 
       <div v-if="showMoreFilters" class="more-filters" style="margin-bottom:12px;padding:10px;border:1px solid #eef2f5;border-radius:8px;background:#fff">
-        <label style="display:inline-flex;align-items:center;gap:8px;margin-right:12px"><input type="checkbox" v-model="onlyWithAnticipo" /> Solo con anticipo</label>
-        <label style="display:inline-flex;align-items:center;gap:8px"><input type="checkbox" v-model="onlyWithNotes" /> Solo con notas</label>
+        <label style="display:inline-flex;align-items:center;gap:8px;margin-right:12px"><input type="checkbox" v-model="onlyWithAnticipo" /> Only with anticipo</label>
+        <label style="display:inline-flex;align-items:center;gap:8px"><input type="checkbox" v-model="onlyWithNotes" /> Only with notes</label>
       </div>
 
       <p v-if="loading">Cargando...</p>
@@ -528,89 +528,37 @@ async function borrar(id: string) {
 .page-title { margin:0;font-size:1.25rem }
 .page-sub { margin:0;color:#666 }
 .header-actions { display:flex;gap:12px;align-items:center;flex-wrap:wrap }
-.btn-primary { background:#059669;color:white;padding:8px 12px;border-radius:6px;border:none;white-space:nowrap;font-weight:500;transition:all 0.2s }
-.btn-primary:hover { background:#047857 }
+.search input { width:100%;max-width:400px;padding:12px 12px;border:1px solid #ddd;border-radius:6px;box-sizing:border-box }
+.btn-primary { background:#059669;color:white;padding:8px 12px;border-radius:6px;border:none;white-space:nowrap }
 .stats-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:12px 0 }
-.stat-card { background:#fff;border:1px solid #eee;padding:12px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.02) }
-.stat-num { font-weight:700;font-size:1.25rem;color:#0f172a }
-.stat-label { color:#64748b;font-size:0.85rem }
-
-/* Responsive list controls */
-.list-controls { display:flex; gap:12px; align-items:center; margin-top:16px; margin-bottom:16px; justify-content:space-between; flex-wrap:wrap; }
-.filters-row { display:flex; gap:12px; align-items:center; flex:1; flex-wrap:wrap; }
-.search { flex: 1; min-width: 250px; }
-.search input { width:100%;padding:10px 14px;border:1px solid #cbd5e1;border-radius:8px;box-sizing:border-box;font-size:0.95rem;transition:border-color 0.2s }
-.search input:focus { outline:none; border-color:#059669; box-shadow:0 0 0 3px rgba(5,150,105,0.1) }
-.status-select-wrap { min-width: 150px; }
-.status-select-wrap select { width:100%;padding:10px 14px;border:1px solid #cbd5e1;border-radius:8px;font-size:0.95rem;background:#fff }
-.date-filters { display:flex; gap:8px; align-items:center; }
-.date-filters input { padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:0.9rem }
-.actions-row { display:flex; gap:8px; align-items:center; }
-
-.orders-table-wrapper { 
-  margin-top:16px;
-  background:#fff;
-  border:1px solid #eef2f5;
-  border-radius:12px;
-  overflow-x:auto; /* Fix para que la tabla no rompa el width de la pagina completa */
-  box-shadow:0 2px 8px rgba(0,0,0,0.02);
-}
-.orders-table { 
-  overflow:visible;
-  position:relative;
-  min-width:900px;
-  padding-bottom:120px; /* Espacio para los menus desplegables */
-}
-.orders-row { 
-  display:grid;
-  grid-template-columns: 1.2fr 2.5fr 1.5fr auto 1fr 1fr 120px;
-  align-items:center;
-  padding:14px 16px;
-  border-bottom:1px solid #f1f5f9;
-  gap:12px;
-  transition:background-color 0.15s;
-}
-.orders-row:hover:not(.header) { background:#f8fafc; }
-.orders-row.header { 
-  font-weight:600;
-  color:#64748b;
-  background:#f8fafc;
-  text-transform:uppercase;
-  font-size:0.75rem;
-  letter-spacing:0.05em;
-  border-bottom:2px solid #eef2f5;
-  border-radius:12px 12px 0 0;
-}
+.stat-card { background:#fff;border:1px solid #eee;padding:12px;border-radius:8px }
+.stat-num { font-weight:700;font-size:1.1rem }
+.stat-label { color:#666 }
+.orders-table-wrapper { margin-top:12px;border-top:1px solid #eee;overflow:visible;position:relative }
+.orders-table { overflow:visible;position:relative;min-width:700px }
+.orders-row { display:grid;grid-template-columns: 2fr 3fr 2fr 1fr 1fr 1fr 1fr;align-items:center;padding:12px;border-bottom:1px solid #f3f3f3;min-width:700px }
+.orders-row.header { font-weight:600;color:#444;background:#fafafa }
 
 @media (max-width: 768px) {
   .page-header { flex-direction:column;align-items:flex-start }
   .header-actions { width:100% }
+  .search { width:100% }
+  .search input { max-width:none;width:100% }
   .stats-grid { grid-template-columns:repeat(2,1fr);gap:8px }
-  .list-controls { flex-direction:column; align-items:stretch; }
-  .filters-row { flex-direction:column; align-items:stretch; gap:10px; }
-  .search { min-width:100%; width:100%; }
-  .status-select-wrap { width:100%; }
-  .status-select-wrap select { width:100%; }
-  .date-filters { display:none !important; /* Ocultar en móvil para más espacio */ }
-  .actions-row { width:100%; justify-content:space-between; margin-top:4px; }
+  .list-controls { flex-direction:column!important;align-items:stretch!important }
 }
-
-.order-id .id-main { font-weight:700;color:#0f172a;font-size:0.95rem }
-.id-sub { font-size:0.8rem;color:#64748b;margin-top:2px }
-.description { font-size:0.9rem;color:#334155;line-height:1.4 }
-.customer { font-size:0.9rem;color:#0f172a;font-weight:500 }
-.amount { font-weight:600;color:#0f172a }
-.remaining { font-weight:600;color:#dc2626 }
-.badge { padding:4px 10px;border-radius:6px;color:white;font-weight:600;font-size:0.7rem;letter-spacing:0.3px;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,0.05) }
+.order-id .id-main { font-weight:700 }
+.id-sub { font-size:0.85rem;color:#666 }
+.customer { padding-left:8px }
+.badge { padding:6px 10px;border-radius:999px;color:white;font-weight:600 }
 .status-pending { background:#f59e0b }
 .status-blue { background:#3b82f6 }
-.status-gray { background:#64748b }
+.status-gray { background:#6b7280 }
 .status-green { background:#10b981 }
 .status-red { background:#ef4444 }
-.actions { display:flex;gap:8px;justify-content:flex-end;align-items:center; }
+.actions { display:flex;gap:8px;justify-content:flex-end }
 .btn-delete { background:#fff;border:1px solid #eee;padding:6px 8px;border-radius:6px }
-.btn-menu { background:#fff;border:1px solid #e2e8f0;padding:6px 10px;border-radius:6px;color:#475569;transition:all 0.2s;line-height:1; }
-.btn-menu:hover { background:#f1f5f9;border-color:#cbd5e1;color:#0f172a }
+.btn-menu { background:#fff;border:1px solid #eee;padding:6px 8px;border-radius:6px }
 .menu { position: relative }
 .menu-pop { position:absolute;background:white;border:1px solid #eee;padding:8px;border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,0.06);z-index:120;right:0;left:auto;top:36px;min-width:120px;white-space:nowrap}
 .menu-divider{height:1px;background:#f1f5f9;margin:8px 0}

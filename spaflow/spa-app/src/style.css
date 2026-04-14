@@ -1,0 +1,299 @@
+
+@import "tailwindcss";
+@config "../tailwind.config.cjs";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ──────────────────────────────────────────────────
+   SpaFlow Design Tokens — Spa Palette
+   Primary:  Lavanda suave  #8b5cf6 → violet-500
+   Accent:   Rose gold      #d4a5a5
+   Surface:  Beige cálido   #faf7f5
+   Success:  Sage verde     #6b8f71
+   ────────────────────────────────────────────────── */
+:root {
+  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light;
+  color: #2d2235;
+  background-color: #faf7f5;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* ── Radius ── */
+  --radius: 0.75rem;
+
+  /* ── Spa Color Tokens ── */
+  --background: #faf7f5;         /* beige cálido */
+  --foreground: #2d2235;         /* morado oscuro */
+  --card: #ffffff;
+  --card-foreground: #2d2235;
+  --popover: #ffffff;
+  --popover-foreground: #2d2235;
+
+  --primary: #8b5cf6;            /* lavanda */
+  --primary-foreground: #ffffff;
+  --primary-hover: #7c3aed;      /* lavanda oscuro */
+
+  --secondary: #f3eeff;          /* lavanda muy claro */
+  --secondary-foreground: #5b21b6;
+
+  --accent: #d4a5a5;             /* rose gold */
+  --accent-foreground: #7f1d1d;
+
+  --muted: #f0ebe8;              /* beige neutro */
+  --muted-foreground: #7a6e7f;
+
+  --success: #6b8f71;            /* sage verde */
+  --success-foreground: #ffffff;
+
+  --destructive: #e05c71;        /* rojo suave */
+  --destructive-foreground: #ffffff;
+
+  --border: #e8e0ea;
+  --input: #e8e0ea;
+  --ring: #c4b5fd;               /* lavanda claro para focus */
+
+  /* ── Chart Colors ── */
+  --chart-1: #8b5cf6;
+  --chart-2: #d4a5a5;
+  --chart-3: #6b8f71;
+  --chart-4: #f59e0b;
+  --chart-5: #06b6d4;
+
+  /* ── Sidebar ── */
+  --sidebar: #ffffff;
+  --sidebar-foreground: #2d2235;
+  --sidebar-primary: #8b5cf6;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f3eeff;
+  --sidebar-accent-foreground: #5b21b6;
+  --sidebar-border: #e8e0ea;
+  --sidebar-ring: #c4b5fd;
+}
+
+/* ── Dark Mode ── */
+.dark {
+  color-scheme: dark;
+  color: #ede9f5;
+  background-color: #160f24;
+
+  --background: #160f24;         /* morado muy oscuro */
+  --foreground: #ede9f5;
+  --card: #1f1535;
+  --card-foreground: #ede9f5;
+  --popover: #1f1535;
+  --popover-foreground: #ede9f5;
+
+  --primary: #a78bfa;            /* lavanda claro en dark */
+  --primary-foreground: #160f24;
+  --primary-hover: #8b5cf6;
+
+  --secondary: #2d1f4a;
+  --secondary-foreground: #c4b5fd;
+
+  --accent: #d4a5a5;
+  --accent-foreground: #ffe4e4;
+
+  --muted: #251840;
+  --muted-foreground: #9d8fb5;
+
+  --success: #86c98d;
+  --success-foreground: #0a2e10;
+
+  --destructive: #f87171;
+  --destructive-foreground: #160f24;
+
+  --border: #2d1f4a;
+  --input: #2d1f4a;
+  --ring: #7c3aed;
+
+  --chart-1: #a78bfa;
+  --chart-2: #f9a8d4;
+  --chart-3: #86c98d;
+  --chart-4: #fbbf24;
+  --chart-5: #22d3ee;
+
+  --sidebar: #1a0f30;
+  --sidebar-foreground: #ede9f5;
+  --sidebar-primary: #a78bfa;
+  --sidebar-primary-foreground: #160f24;
+  --sidebar-accent: #2d1f4a;
+  --sidebar-accent-foreground: #c4b5fd;
+  --sidebar-border: #2d1f4a;
+  --sidebar-ring: #7c3aed;
+}
+
+html, body, #app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+#app {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  button {
+    cursor: pointer;
+  }
+}
+
+/* ──────────────────────────────────────────────────
+   SpaFlow — Utility classes globales
+   ────────────────────────────────────────────────── */
+
+/* Font elegante para títulos */
+.font-spa-display {
+  font-family: 'Playfair Display', Georgia, serif;
+}
+
+/* Botón primario spa */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: var(--radius);
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-weight: 600;
+  font-size: 14px;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.28);
+}
+.btn-primary:hover {
+  background: var(--primary-hover);
+  box-shadow: 0 4px 16px rgba(139, 92, 246, 0.38);
+  transform: translateY(-1px);
+}
+.btn-primary:active { transform: translateY(0); }
+
+/* Botón ghost */
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--primary);
+  font-weight: 600;
+  font-size: 14px;
+  border: 1.5px solid var(--primary);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.btn-ghost:hover {
+  background: var(--secondary);
+}
+
+/* Card spa */
+.card-spa {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: 0 1px 6px rgba(45, 34, 53, 0.06);
+  transition: box-shadow 0.2s ease;
+}
+.card-spa:hover {
+  box-shadow: 0 4px 16px rgba(45, 34, 53, 0.1);
+}
+:is(.dark) .card-spa {
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* Badge de estado cita */
+.badge-agendada    { background:#e9e4ff; color:#5b21b6; }
+.badge-confirmada  { background:#d1fae5; color:#065f46; }
+.badge-en_curso    { background:#fef3c7; color:#92400e; }
+.badge-completada  { background:#dcfce7; color:#166534; }
+.badge-cancelada   { background:#fee2e2; color:#991b1b; }
+.badge-no_show     { background:#f3f4f6; color:#374151; }
+
+:is(.dark) .badge-agendada    { background:#2d1f4a; color:#c4b5fd; }
+:is(.dark) .badge-confirmada  { background:#064e3b; color:#6ee7b7; }
+:is(.dark) .badge-en_curso    { background:#451a03; color:#fde68a; }
+:is(.dark) .badge-completada  { background:#052e16; color:#86efac; }
+:is(.dark) .badge-cancelada   { background:#450a0a; color:#fca5a5; }
+:is(.dark) .badge-no_show     { background:#1f2937; color:#9ca3af; }
+
+.estado-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Impresión */
+@media print {
+  @page { size: Letter; margin: 10mm; }
+  body { background: #fff !important; }
+  .toolbar, .no-print, .sidebar, .topbar, .app-shell header { display: none !important; }
+  .main-column { padding-left: 0 !important; }
+  .app-shell { background: #fff !important; }
+}
