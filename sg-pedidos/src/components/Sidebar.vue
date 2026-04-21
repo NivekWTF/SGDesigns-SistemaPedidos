@@ -60,6 +60,11 @@
         <span v-show="!effectiveCollapsed || mobileOpen" class="label">Cotizador</span>
       </router-link>
 
+      <router-link to="/qr" class="nav-item" :title="effectiveCollapsed && !mobileOpen ? 'Código QR' : ''" @click="closeMobile">
+        <span class="icon"><QrCode class="h-[18px] w-[18px]" /></span>
+        <span v-show="!effectiveCollapsed || mobileOpen" class="label">Código QR</span>
+      </router-link>
+
       <router-link v-if="isAdmin" to="/usuarios" class="nav-item" :title="effectiveCollapsed && !mobileOpen ? 'Usuarios' : ''" @click="closeMobile">
         <span class="icon"><Shield class="h-[18px] w-[18px]" /></span>
         <span v-show="!effectiveCollapsed || mobileOpen" class="label">Usuarios</span>
@@ -110,7 +115,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useAuth } from '../composables/useAuth'
-import { LayoutDashboard, Package, Shield, Users, ShoppingCart, Wallet, BarChart3, Banknote, ChevronLeft, ChevronRight, X, Sun, Moon, FileText } from 'lucide-vue-next'
+import { LayoutDashboard, Package, Shield, Users, ShoppingCart, Wallet, BarChart3, Banknote, ChevronLeft, ChevronRight, X, Sun, Moon, FileText, QrCode } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 
 const props = defineProps<{
