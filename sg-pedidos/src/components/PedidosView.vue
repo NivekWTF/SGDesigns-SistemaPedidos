@@ -309,13 +309,24 @@ async function confirmAnticipo() {
   anticipoPaying.value = true
   try {
     await registrarPago(p.id, anticipoMonto.value, anticipoMethod.value)
+
+    // --- Actualizar estado local sin refetch ---
+    const idx = pedidos.value.findIndex((x: any) => x.id === p.id)
+    if (idx !== -1) {
+      const current = pedidos.value[idx] as any
+      const nuevoPago = { id: crypto.randomUUID(), monto: anticipoMonto.value, metodo: anticipoMethod.value, es_anticipo: true, referencia: null, creado_en: new Date().toISOString() }
+      pedidos.value[idx] = {
+        ...current,
+        pagos: [...(current.pagos || []), nuevoPago]
+      }
+    }
+
     showAnticipo.value = false
     anticipoModalPedido.value = null
     anticipoMonto.value = 0
     anticipoMethod.value = ''
-    infoMsg.value = 'Pago registrado correctamente'
+    infoMsg.value = 'Pago registrado correctamente ✓'
     setTimeout(() => { infoMsg.value = null }, 2500)
-    await fetchPedidos()
   } catch (err) {
     console.error('Error registrando anticipo', err)
     alert('No se pudo registrar el pago')
@@ -498,13 +509,27 @@ async function confirmEntregado() {
     }
 
     await actualizarEstadoPedido(p.id, 'ENTREGADO')
+
+    // --- Actualizar estado local sin refetch para no reiniciar la UI ---
+    const idx = pedidos.value.findIndex((x: any) => x.id === p.id)
+    if (idx !== -1) {
+      const current = pedidos.value[idx] as any
+      const nuevoPago = resto > 0
+        ? [{ id: crypto.randomUUID(), monto: resto, metodo: paymentMethod.value, es_anticipo: false, referencia: null, creado_en: new Date().toISOString() }]
+        : []
+      pedidos.value[idx] = {
+        ...current,
+        estado: 'ENTREGADO',
+        updated_at: new Date().toISOString(),
+        pagos: [...(current.pagos || []), ...nuevoPago]
+      }
+    }
+
     showPaymentModal.value = false
     paymentModalPedido.value = null
     paymentMethod.value = ''
-    infoMsg.value = 'Pedido entregado'
+    infoMsg.value = 'Pedido entregado ✓'
     setTimeout(() => { infoMsg.value = null }, 2500)
-    // Refetch to update payment info in the list
-    await fetchPedidos()
   } catch (err) {
     console.error('Error entregando pedido', err)
     alert('No se pudo entregar el pedido')
