@@ -11,7 +11,7 @@
     <!-- Stats globales -->
     <div class="global-kpis">
       <div class="kpi-pill"><Building2 class="h-4 w-4"/><span class="kv">{{ spas.length }}</span><span>Spas activos</span></div>
-      <div class="kpi-pill"><Users class="h-4 w-4"/><span class="kv">{{ totalUsuarios }}</span><span>Usuarios</span></div>
+      <div class="kpi-pill"><Users class="h-4 w-4"/><span class="kv">{{ todosUsuarios.length }}</span><span>Usuarios</span></div>
     </div>
 
     <!-- Lista de spas -->
@@ -62,6 +62,65 @@
           <span class="trial-lbl">Trial hasta {{ fmtDate(spa.trial_hasta) }}</span>
         </div>
       </div>
+    </div>
+
+    <!-- ── Sección: Usuarios globales ───────────────────────────────── -->
+    <div class="section-header">
+      <div class="section-title"><UserCog class="h-5 w-5"/> Usuarios globales</div>
+      <input v-model="userSearch" class="search-input" placeholder="Buscar por nombre o email…" />
+    </div>
+
+    <div v-if="loadingUsers" class="empty-state"><div class="spinner"/><p>Cargando usuarios...</p></div>
+    <div v-else-if="filteredUsers.length === 0" class="empty-state">
+      <Users class="h-8 w-8 op-30"/><p>No hay usuarios registrados</p>
+    </div>
+    <div v-else class="usuarios-table card-spa">
+      <table class="spa-table">
+        <thead>
+          <tr>
+            <th>Usuario</th>
+            <th>Spa asignado</th>
+            <th>Rol</th>
+            <th>Desde</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="u in filteredUsers" :key="u.id">
+            <td>
+              <div class="user-row">
+                <div class="user-avatar" :style="avatarStyle(u.full_name || u.email)">
+                  {{ initials(u.full_name || u.email) }}
+                </div>
+                <div>
+                  <div class="user-nombre">{{ u.full_name || '(Sin nombre)' }}</div>
+                  <div class="user-email">{{ u.email }}</div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <select class="rol-select" :value="u.spa_id ?? ''" @change="cambiarSpa(u, ($event.target as HTMLSelectElement).value)">
+                <option value="">— Sin spa —</option>
+                <option v-for="s in spas" :key="s.id" :value="s.id">{{ s.nombre }}</option>
+              </select>
+            </td>
+            <td>
+              <select class="rol-select" :value="u.role" @change="cambiarRolGlobal(u, ($event.target as HTMLSelectElement).value)">
+                <option value="superadmin">Superadmin</option>
+                <option value="admin_spa">Admin spa</option>
+                <option value="recepcionista">Recepcionista</option>
+                <option value="terapeuta">Terapeuta</option>
+              </select>
+            </td>
+            <td class="date-col">{{ fmtDate(u.created_at) }}</td>
+            <td class="actions-cell">
+              <button class="icon-btn danger" @click="revocarAcceso(u)" title="Revocar acceso (quitar spa)">
+                <Trash2 class="h-4 w-4"/>
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
 
     <!-- Modal: Crear / Editar spa -->
@@ -123,7 +182,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { supabase } from '../lib/supabase'
-import { Building2, Users, Plus, Pencil, Play, Pause, CalendarDays, X, Loader2 } from 'lucide-vue-next'
+import { Building2, Users, Plus, Pencil, Play, Pause, CalendarDays, X, Loader2, UserCog, Trash2 } from 'lucide-vue-next'
 
 interface SpaRow {
   id: string
@@ -219,7 +278,61 @@ async function guardarSpa() {
   } finally { savingSpa.value = false }
 }
 
-onMounted(fetchSpas)
+// ── Usuarios globales ────────────────────────────────────────────────────
+interface UsuarioGlobal {
+  id: string
+  email: string
+  full_name: string | null
+  role: string
+  spa_id: string | null
+  created_at: string
+}
+
+const todosUsuarios = ref<UsuarioGlobal[]>([])
+const loadingUsers = ref(false)
+const userSearch = ref('')
+
+const filteredUsers = computed(() => {
+  const q = userSearch.value.toLowerCase().trim()
+  if (!q) return todosUsuarios.value
+  return todosUsuarios.value.filter(u =>
+    (u.email ?? '').toLowerCase().includes(q) ||
+    (u.full_name ?? '').toLowerCase().includes(q)
+  )
+})
+
+async function fetchUsuarios() {
+  loadingUsers.value = true
+  const { data } = await supabase
+    .from('profiles')
+    .select('id, email, full_name, role, spa_id, created_at')
+    .order('created_at', { ascending: false })
+  todosUsuarios.value = (data ?? []) as UsuarioGlobal[]
+  loadingUsers.value = false
+}
+
+async function cambiarRolGlobal(u: UsuarioGlobal, newRole: string) {
+  const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', u.id)
+  if (!error) u.role = newRole
+}
+
+async function cambiarSpa(u: UsuarioGlobal, newSpaId: string) {
+  const val = newSpaId || null
+  const { error } = await supabase.from('profiles').update({ spa_id: val }).eq('id', u.id)
+  if (!error) u.spa_id = val
+}
+
+async function revocarAcceso(u: UsuarioGlobal) {
+  if (!confirm(`¿Quitar el spa asignado a ${u.email}? El usuario quedará sin acceso hasta que se le asigne uno.`)) return
+  const { error } = await supabase.from('profiles').update({ spa_id: null }).eq('id', u.id)
+  if (!error) u.spa_id = null
+}
+
+const AVATAR_COLORS = ['#8b5cf6','#ec4899','#f59e0b','#10b981','#3b82f6']
+function avatarStyle(s: string) { return { background: AVATAR_COLORS[(s ?? 'A').charCodeAt(0) % AVATAR_COLORS.length] } }
+function initials(s: string) { return (s ?? '?').split(/[\s@]/).slice(0,2).map(w => w[0]).join('').toUpperCase() }
+
+onMounted(() => { fetchSpas(); fetchUsuarios() })
 </script>
 
 <style scoped>
@@ -298,4 +411,23 @@ onMounted(fetchSpas)
 :is(.dark) .form-error { background: #450a0a; color: #f87171; }
 
 @media (max-width: 640px) { .view-page { padding: 16px; } .spas-grid { grid-template-columns: 1fr; } }
+
+/* ── Usuarios globales ── */
+.section-header { display: flex; align-items: center; justify-content: space-between; margin: 32px 0 14px; gap: 12px; flex-wrap: wrap; }
+.section-title { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 700; color: var(--foreground); }
+.search-input { padding: 8px 12px; border: 1.5px solid var(--border); border-radius: var(--radius); background: var(--background); color: var(--foreground); font-size: 13px; width: 240px; }
+.search-input:focus { outline: none; border-color: var(--primary); }
+.usuarios-table { padding: 0; overflow-x: auto; margin-bottom: 24px; }
+.spa-table { width: 100%; border-collapse: collapse; min-width: 580px; }
+.spa-table th { padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted-foreground); border-bottom: 2px solid var(--border); }
+.spa-table td { padding: 12px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.user-row { display: flex; align-items: center; gap: 10px; }
+.user-avatar { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 12px; flex-shrink: 0; }
+.user-nombre { font-weight: 600; font-size: 13px; color: var(--foreground); }
+.user-email { font-size: 11px; color: var(--muted-foreground); }
+.date-col { color: var(--muted-foreground); font-size: 12px; white-space: nowrap; }
+.actions-cell { display: flex; justify-content: flex-end; gap: 6px; }
+.rol-select { padding: 5px 8px; border: 1.5px solid var(--border); border-radius: var(--radius); background: var(--background); color: var(--foreground); font-size: 12px; font-weight: 600; cursor: pointer; max-width: 160px; }
+.rol-select:focus { outline: none; border-color: var(--primary); }
+
 </style>
