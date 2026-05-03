@@ -15,10 +15,50 @@
         <div v-if="step === 1" class="step-panel">
           <div class="step-actions">
             <input v-model="clientSearch" placeholder="Buscar cliente..." class="input" />
-            <div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <button class="btn-new-client" @click="showQuickClient = !showQuickClient">
+                <span class="btn-new-client__icon">＋</span> Nuevo cliente
+              </button>
               <button class="btn-primary" :disabled="!selectedClient" @click="nextStep">Siguiente</button>
             </div>
           </div>
+
+          <!-- Quick-create client inline form -->
+          <transition name="slide-down">
+            <div v-if="showQuickClient" class="quick-client-form">
+              <div class="quick-client-form__header">
+                <div class="quick-client-form__title">
+                  <span class="quick-client-form__icon">👤</span>
+                  <span>Crear cliente rápido</span>
+                </div>
+                <button class="quick-client-form__close" @click="showQuickClient = false">✕</button>
+              </div>
+              <form @submit.prevent="handleQuickCreateClient" class="quick-client-form__body">
+                <div class="quick-client-form__fields">
+                  <div class="quick-client-form__field">
+                    <label class="quick-client-form__label">Nombre *</label>
+                    <input v-model="quickClientForm.nombre" required class="input" placeholder="Nombre del cliente" />
+                  </div>
+                  <div class="quick-client-form__field">
+                    <label class="quick-client-form__label">Teléfono</label>
+                    <input v-model="quickClientForm.telefono" class="input" placeholder="Ej: 614 123 4567" />
+                  </div>
+                  <div class="quick-client-form__field">
+                    <label class="quick-client-form__label">Correo</label>
+                    <input v-model="quickClientForm.correo" type="email" class="input" placeholder="correo@ejemplo.com" />
+                  </div>
+                </div>
+                <div class="quick-client-form__actions">
+                  <button type="submit" class="btn-primary" :disabled="quickClientSubmitting || !quickClientForm.nombre">
+                    {{ quickClientSubmitting ? 'Creando...' : '✓ Crear y seleccionar' }}
+                  </button>
+                  <button type="button" class="btn-ghost" @click="showQuickClient = false">Cancelar</button>
+                </div>
+                <div v-if="quickClientError" class="quick-client-form__error">{{ quickClientError }}</div>
+                <div v-if="quickClientSuccess" class="quick-client-form__success">✓ Cliente creado y seleccionado</div>
+              </form>
+            </div>
+          </transition>
 
           <div class="cards-grid">
             <div
@@ -227,7 +267,7 @@ const props = defineProps<{ initialPedido?: any | null }>()
 
 const step = ref(1)
 
-const { clientes, fetchClientes } = useClientes()
+const { clientes, fetchClientes, crearCliente } = useClientes()
 const { productos, fetchProductos } = useProductos()
 const { formatCurrency } = useFormat()
 const { crearPedido, actualizarPedidoCompleto } = usePedidos()
@@ -250,6 +290,43 @@ const notas = ref('')
 const submitting = ref(false)
 const stockErrors = ref<Array<{ nombre: string; disponible: number; requerido: number }>>([])
 const notesTextarea = ref<HTMLTextAreaElement | null>(null)
+
+// --- Quick-create client ---
+const showQuickClient = ref(false)
+const quickClientSubmitting = ref(false)
+const quickClientError = ref('')
+const quickClientSuccess = ref(false)
+const quickClientForm = ref({ nombre: '', telefono: '', correo: '' })
+
+async function handleQuickCreateClient() {
+  if (!quickClientForm.value.nombre) return
+  quickClientSubmitting.value = true
+  quickClientError.value = ''
+  quickClientSuccess.value = false
+  try {
+    const newClient = await crearCliente({
+      nombre: quickClientForm.value.nombre,
+      telefono: quickClientForm.value.telefono || undefined,
+      correo: quickClientForm.value.correo || undefined
+    } as any)
+    // Auto-select the newly created client
+    selectedClient.value = newClient
+    quickClientSuccess.value = true
+    // Reset form
+    quickClientForm.value = { nombre: '', telefono: '', correo: '' }
+    // Refresh clients list
+    await fetchClientes()
+    // Hide form after a brief success flash
+    setTimeout(() => {
+      showQuickClient.value = false
+      quickClientSuccess.value = false
+    }, 1200)
+  } catch (err: any) {
+    quickClientError.value = err?.message || 'Error al crear el cliente'
+  } finally {
+    quickClientSubmitting.value = false
+  }
+}
 
 // --- Quick tags for notes ---
 const quickTags = [
@@ -636,7 +713,38 @@ function close(){ emit('close') }
   .anticipo-row{flex-wrap:wrap}
   .wizard-actions{flex-wrap:wrap}
   .step-actions{flex-wrap:wrap}
+  .quick-client-form__fields{grid-template-columns:1fr}
+  .quick-client-form{padding:12px 14px}
+  .btn-new-client{font-size:0.82rem;padding:6px 10px}
 }
+
+/* New client button */
+.btn-new-client{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;border:1px dashed #0ea5a4;background:linear-gradient(135deg,#f0fdfa,#ecfdf5);color:#0d9488;font-weight:600;font-size:0.9rem;cursor:pointer;transition:all 0.2s ease}
+.btn-new-client:hover{background:linear-gradient(135deg,#ccfbf1,#d1fae5);border-style:solid;transform:translateY(-1px);box-shadow:0 4px 12px rgba(14,165,164,0.15)}
+.btn-new-client__icon{font-size:1.1rem;font-weight:700}
+
+/* Quick-create client inline form */
+.quick-client-form{border:1px solid #0ea5a4;border-radius:12px;padding:16px 20px;margin-bottom:16px;background:linear-gradient(135deg,#f0fdfa 0%,#ecfdf5 100%);box-shadow:0 4px 16px rgba(14,165,164,0.1);overflow:hidden}
+.quick-client-form__header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.quick-client-form__title{display:flex;align-items:center;gap:8px;font-weight:700;font-size:0.95rem;color:#0d6d6e}
+.quick-client-form__icon{font-size:1.2rem}
+.quick-client-form__close{background:none;border:none;font-size:1rem;color:#64748b;cursor:pointer;padding:4px 8px;border-radius:6px;transition:background 0.15s}
+.quick-client-form__close:hover{background:rgba(0,0,0,0.05)}
+.quick-client-form__body{display:flex;flex-direction:column;gap:12px}
+.quick-client-form__fields{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.quick-client-form__field{display:flex;flex-direction:column;gap:4px}
+.quick-client-form__label{font-weight:600;font-size:0.82rem;color:#334155;text-transform:uppercase;letter-spacing:0.3px}
+.quick-client-form__actions{display:flex;gap:8px;justify-content:flex-end}
+.quick-client-form__error{background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;padding:8px 12px;border-radius:8px;font-size:0.88rem;margin-top:4px}
+.quick-client-form__success{background:#f0fdf4;border:1px solid #86efac;color:#166534;padding:8px 12px;border-radius:8px;font-size:0.88rem;margin-top:4px;display:flex;align-items:center;gap:6px;animation:fadeIn 0.3s ease}
+
+/* Slide-down transition */
+.slide-down-enter-active{transition:all 0.3s ease;max-height:300px}
+.slide-down-leave-active{transition:all 0.25s ease;max-height:300px}
+.slide-down-enter-from{opacity:0;max-height:0;margin-bottom:0;padding-top:0;padding-bottom:0;transform:translateY(-10px)}
+.slide-down-leave-to{opacity:0;max-height:0;margin-bottom:0;padding-top:0;padding-bottom:0;transform:translateY(-10px)}
+
+@keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
 
 /* Dark mode */
 :is(.dark) .modal-overlay{background:rgba(0,0,0,0.6)}
@@ -689,4 +797,17 @@ function close(){ emit('close') }
 :is(.dark) .stock-error-header{color:#fca5a5}
 :is(.dark) .stock-error-desc{color:#fecaca}
 :is(.dark) .stock-error-list li{color:#fecaca;border-bottom-color:#7f1d1d}
+
+/* Dark mode: new client button */
+:is(.dark) .btn-new-client{background:linear-gradient(135deg,#0c2e2d,#0f2e1e);border-color:#0ea5a4;color:#5eead4}
+:is(.dark) .btn-new-client:hover{background:linear-gradient(135deg,#134e4a,#14532d);box-shadow:0 4px 12px rgba(14,165,164,0.2)}
+
+/* Dark mode: quick-create client form */
+:is(.dark) .quick-client-form{background:linear-gradient(135deg,#0f1729 0%,#0c2524 100%);border-color:#0ea5a4;box-shadow:0 4px 16px rgba(14,165,164,0.15)}
+:is(.dark) .quick-client-form__title{color:#5eead4}
+:is(.dark) .quick-client-form__close{color:#94a3b8}
+:is(.dark) .quick-client-form__close:hover{background:rgba(255,255,255,0.05)}
+:is(.dark) .quick-client-form__label{color:#94a3b8}
+:is(.dark) .quick-client-form__error{background:#1a0505;border-color:#7f1d1d;color:#fca5a5}
+:is(.dark) .quick-client-form__success{background:#052e16;border-color:#166534;color:#86efac}
 </style>

@@ -1,5 +1,9 @@
 <template>
   <div class="view-page">
+    <!-- Toast -->
+    <Teleport to="body">
+      <div v-if="toast" class="toast" :class="toast.type">{{ toast.msg }}</div>
+    </Teleport>
     <div class="page-header">
       <div>
         <h1 class="font-spa-display">SuperAdmin</h1>
@@ -311,21 +315,34 @@ async function fetchUsuarios() {
   loadingUsers.value = false
 }
 
+// Toast
+const toast = ref<{ msg: string; type: 'ok' | 'err' } | null>(null)
+function showToast(msg: string, type: 'ok' | 'err' = 'ok') {
+  toast.value = { msg, type }
+  setTimeout(() => { toast.value = null }, 3000)
+}
+
 async function cambiarRolGlobal(u: UsuarioGlobal, newRole: string) {
   const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', u.id)
-  if (!error) u.role = newRole
+  if (error) { console.error('cambiarRol error:', error); showToast('Error: ' + error.message, 'err'); return }
+  await fetchUsuarios()
+  showToast('Rol actualizado ✓')
 }
 
 async function cambiarSpa(u: UsuarioGlobal, newSpaId: string) {
   const val = newSpaId || null
   const { error } = await supabase.from('profiles').update({ spa_id: val }).eq('id', u.id)
-  if (!error) u.spa_id = val
+  if (error) { console.error('cambiarSpa error:', error); showToast('Error: ' + error.message, 'err'); return }
+  await fetchUsuarios()
+  showToast('Spa actualizado ✓')
 }
 
 async function revocarAcceso(u: UsuarioGlobal) {
-  if (!confirm(`¿Quitar el spa asignado a ${u.email}? El usuario quedará sin acceso hasta que se le asigne uno.`)) return
+  if (!confirm(`¿Quitar el spa asignado a ${u.email}?`)) return
   const { error } = await supabase.from('profiles').update({ spa_id: null }).eq('id', u.id)
-  if (!error) u.spa_id = null
+  if (error) { console.error('revocarAcceso error:', error); showToast('Error: ' + error.message, 'err'); return }
+  await fetchUsuarios()
+  showToast('Acceso revocado')
 }
 
 const AVATAR_COLORS = ['#8b5cf6','#ec4899','#f59e0b','#10b981','#3b82f6']
@@ -429,5 +446,13 @@ onMounted(() => { fetchSpas(); fetchUsuarios() })
 .actions-cell { display: flex; justify-content: flex-end; gap: 6px; }
 .rol-select { padding: 5px 8px; border: 1.5px solid var(--border); border-radius: var(--radius); background: var(--background); color: var(--foreground); font-size: 12px; font-weight: 600; cursor: pointer; max-width: 160px; }
 .rol-select:focus { outline: none; border-color: var(--primary); }
+
+/* Toast */
+.toast { position: fixed; bottom: 24px; right: 24px; z-index: 9999; padding: 12px 20px; border-radius: var(--radius); font-size: 13px; font-weight: 600; box-shadow: 0 8px 24px rgba(0,0,0,.18); animation: slideUp .2s ease; }
+.toast.ok { background: #d1fae5; color: #065f46; }
+.toast.err { background: #fee2e2; color: #991b1b; }
+:is(.dark) .toast.ok { background: #064e3b; color: #6ee7b7; }
+:is(.dark) .toast.err { background: #450a0a; color: #fca5a5; }
+@keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
 </style>
