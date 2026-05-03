@@ -127,7 +127,7 @@
       <div class="list-controls">
         <div class="filters-row">
           <div class="search">
-            <input v-model="searchTerm" placeholder="Buscar por nombre, ID de pedido..." />
+            <input v-model="searchTerm" placeholder="Buscar por nombre, ID, descripción..." />
           </div>
 
           <div class="status-select-wrap">
@@ -349,7 +349,8 @@ const filteredPedidos = computed(() => {
     if (q) {
       const idText = (p.folio || p.id || '').toString().toLowerCase()
       const cliente = (p.clientes?.nombre || '').toLowerCase()
-      if (!idText.includes(q) && !cliente.includes(q)) return false
+      const desc = formatDescription(p).toLowerCase()
+      if (!idText.includes(q) && !cliente.includes(q) && !desc.includes(q)) return false
     }
 
     // status filter
