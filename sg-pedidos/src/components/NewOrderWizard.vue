@@ -98,10 +98,51 @@
             </div>
           </div>
 
+          <!-- Quick-add stock inline form -->
+          <transition name="slide-down">
+            <div v-if="showQuickStock" class="quick-stock-form">
+              <div class="quick-stock-form__header">
+                <div class="quick-stock-form__title">
+                  <span class="quick-stock-form__icon">📦</span>
+                  <span>Agregar stock — {{ quickStockProduct?.nombre }}</span>
+                </div>
+                <button class="quick-stock-form__close" @click="showQuickStock = false">✕</button>
+              </div>
+              <form @submit.prevent="handleQuickAddStock" class="quick-stock-form__body">
+                <div class="quick-stock-form__fields">
+                  <div class="quick-stock-form__field">
+                    <label class="quick-stock-form__label">Stock actual</label>
+                    <div class="quick-stock-form__value">{{ quickStockProduct?.stock ?? 0 }}</div>
+                  </div>
+                  <div class="quick-stock-form__field">
+                    <label class="quick-stock-form__label">Cantidad a agregar *</label>
+                    <input v-model.number="quickStockQty" type="number" min="1" step="1" required class="input" placeholder="Ej: 10" />
+                  </div>
+                  <div class="quick-stock-form__field">
+                    <label class="quick-stock-form__label">Nuevo stock</label>
+                    <div class="quick-stock-form__value quick-stock-form__value--highlight">{{ (quickStockProduct?.stock ?? 0) + (quickStockQty || 0) }}</div>
+                  </div>
+                </div>
+                <div class="quick-stock-form__actions">
+                  <button type="submit" class="btn-primary" :disabled="quickStockSubmitting || !quickStockQty || quickStockQty <= 0">
+                    {{ quickStockSubmitting ? 'Guardando...' : '✓ Agregar stock' }}
+                  </button>
+                  <button type="button" class="btn-ghost" @click="showQuickStock = false">Cancelar</button>
+                </div>
+                <div v-if="quickStockError" class="quick-stock-form__error">{{ quickStockError }}</div>
+                <div v-if="quickStockSuccess" class="quick-stock-form__success">✓ Stock actualizado correctamente</div>
+              </form>
+            </div>
+          </transition>
+
           <div class="cards-grid">
             <div v-for="p in paginatedProducts" :key="p.id" class="card">
                   <div class="card-title">{{ p.nombre }}</div>
                   <div class="card-sub">{{ p.unidad || '-' }} · {{ formatCurrency(p.precio_base) }}</div>
+                  <div class="card-stock-row">
+                    <span :class="['stock-badge-mini', stockBadgeClass(p.stock)]">Stock: {{ typeof p.stock === 'number' ? p.stock : '—' }}</span>
+                    <button v-if="typeof p.stock === 'number' && p.stock <= 2" class="btn-restock" @click="openQuickStock(p)" type="button">＋ Stock</button>
+                  </div>
               <div class="card-actions">
                 <input type="number" v-model.number="productQty[p.id]" min="0.01" step="0.01" class="qty" />
                 <button class="btn-primary" @click="addProductToItems(p)">Agregar</button>
@@ -151,8 +192,46 @@
             <ul class="stock-error-list">
               <li v-for="(err, i) in stockErrors" :key="i">
                 <strong>{{ err.nombre }}</strong> — Disponible: <span class="stock-available">{{ err.disponible }}</span>, Requerido: <span class="stock-required">{{ err.requerido }}</span>
+                <button class="btn-restock-inline" @click="openQuickStockByName(err.nombre)" type="button">＋ Agregar stock</button>
               </li>
             </ul>
+
+            <!-- Quick-add stock form inside error banner -->
+            <transition name="slide-down">
+              <div v-if="showQuickStockReview" class="quick-stock-form quick-stock-form--review">
+                <div class="quick-stock-form__header">
+                  <div class="quick-stock-form__title">
+                    <span class="quick-stock-form__icon">📦</span>
+                    <span>Agregar stock — {{ quickStockProduct?.nombre }}</span>
+                  </div>
+                  <button class="quick-stock-form__close" @click="showQuickStockReview = false">✕</button>
+                </div>
+                <form @submit.prevent="handleQuickAddStockReview" class="quick-stock-form__body">
+                  <div class="quick-stock-form__fields">
+                    <div class="quick-stock-form__field">
+                      <label class="quick-stock-form__label">Stock actual</label>
+                      <div class="quick-stock-form__value">{{ quickStockProduct?.stock ?? 0 }}</div>
+                    </div>
+                    <div class="quick-stock-form__field">
+                      <label class="quick-stock-form__label">Cantidad a agregar *</label>
+                      <input v-model.number="quickStockQty" type="number" min="1" step="1" required class="input" placeholder="Ej: 10" />
+                    </div>
+                    <div class="quick-stock-form__field">
+                      <label class="quick-stock-form__label">Nuevo stock</label>
+                      <div class="quick-stock-form__value quick-stock-form__value--highlight">{{ (quickStockProduct?.stock ?? 0) + (quickStockQty || 0) }}</div>
+                    </div>
+                  </div>
+                  <div class="quick-stock-form__actions">
+                    <button type="submit" class="btn-primary" :disabled="quickStockSubmitting || !quickStockQty || quickStockQty <= 0">
+                      {{ quickStockSubmitting ? 'Guardando...' : '✓ Agregar stock' }}
+                    </button>
+                    <button type="button" class="btn-ghost" @click="showQuickStockReview = false">Cancelar</button>
+                  </div>
+                  <div v-if="quickStockError" class="quick-stock-form__error">{{ quickStockError }}</div>
+                  <div v-if="quickStockSuccess" class="quick-stock-form__success">✓ Stock actualizado — vuelve a confirmar el pedido</div>
+                </form>
+              </div>
+            </transition>
           </div>
 
           <div class="review-section">
@@ -268,7 +347,7 @@ const props = defineProps<{ initialPedido?: any | null }>()
 const step = ref(1)
 
 const { clientes, fetchClientes, crearCliente } = useClientes()
-const { productos, fetchProductos } = useProductos()
+const { productos, fetchProductos, actualizarProducto } = useProductos()
 const { formatCurrency } = useFormat()
 const { crearPedido, actualizarPedidoCompleto } = usePedidos()
 
@@ -325,6 +404,93 @@ async function handleQuickCreateClient() {
     quickClientError.value = err?.message || 'Error al crear el cliente'
   } finally {
     quickClientSubmitting.value = false
+  }
+}
+
+// --- Quick-add stock ---
+const showQuickStock = ref(false)
+const showQuickStockReview = ref(false)
+const quickStockProduct = ref<any | null>(null)
+const quickStockQty = ref<number>(0)
+const quickStockSubmitting = ref(false)
+const quickStockError = ref('')
+const quickStockSuccess = ref(false)
+
+function stockBadgeClass(stock: number | null | undefined) {
+  if (typeof stock !== 'number') return 'stock-badge--neutral'
+  if (stock === 0) return 'stock-badge--zero'
+  if (stock <= 2) return 'stock-badge--low'
+  return 'stock-badge--ok'
+}
+
+function openQuickStock(product: any) {
+  quickStockProduct.value = product
+  quickStockQty.value = 0
+  quickStockError.value = ''
+  quickStockSuccess.value = false
+  showQuickStock.value = true
+  showQuickStockReview.value = false
+}
+
+function openQuickStockByName(nombre: string) {
+  const product = productos.value.find((p: any) => (p.nombre || '').toLowerCase() === nombre.toLowerCase())
+  if (!product) return
+  quickStockProduct.value = product
+  quickStockQty.value = 0
+  quickStockError.value = ''
+  quickStockSuccess.value = false
+  showQuickStockReview.value = true
+  showQuickStock.value = false
+}
+
+async function handleQuickAddStock() {
+  if (!quickStockProduct.value || !quickStockQty.value || quickStockQty.value <= 0) return
+  quickStockSubmitting.value = true
+  quickStockError.value = ''
+  quickStockSuccess.value = false
+  try {
+    const prod = quickStockProduct.value
+    const newStock = (prod.stock ?? 0) + quickStockQty.value
+    await actualizarProducto(prod.id, { nombre: prod.nombre, precio_base: prod.precio_base, stock: newStock })
+    quickStockSuccess.value = true
+    await fetchProductos()
+    // Update local ref
+    quickStockProduct.value = productos.value.find((p: any) => p.id === prod.id) || null
+    quickStockQty.value = 0
+    setTimeout(() => {
+      showQuickStock.value = false
+      quickStockSuccess.value = false
+    }, 1200)
+  } catch (err: any) {
+    quickStockError.value = err?.message || 'Error al actualizar stock'
+  } finally {
+    quickStockSubmitting.value = false
+  }
+}
+
+async function handleQuickAddStockReview() {
+  if (!quickStockProduct.value || !quickStockQty.value || quickStockQty.value <= 0) return
+  quickStockSubmitting.value = true
+  quickStockError.value = ''
+  quickStockSuccess.value = false
+  try {
+    const prod = quickStockProduct.value
+    const newStock = (prod.stock ?? 0) + quickStockQty.value
+    await actualizarProducto(prod.id, { nombre: prod.nombre, precio_base: prod.precio_base, stock: newStock })
+    quickStockSuccess.value = true
+    await fetchProductos()
+    quickStockProduct.value = productos.value.find((p: any) => p.id === prod.id) || null
+    quickStockQty.value = 0
+    // Clear stock errors so user can retry
+    stockErrors.value = []
+    setTimeout(() => {
+      showQuickStockReview.value = false
+      quickStockSuccess.value = false
+    }, 1500)
+  } catch (err: any) {
+    quickStockError.value = err?.message || 'Error al actualizar stock'
+  } finally {
+    quickStockSubmitting.value = false
   }
 }
 
@@ -810,4 +976,67 @@ function close(){ emit('close') }
 :is(.dark) .quick-client-form__label{color:#94a3b8}
 :is(.dark) .quick-client-form__error{background:#1a0505;border-color:#7f1d1d;color:#fca5a5}
 :is(.dark) .quick-client-form__success{background:#052e16;border-color:#166534;color:#86efac}
+
+/* Card stock row */
+.card-stock-row{display:flex;align-items:center;gap:6px;margin-top:4px}
+.stock-badge-mini{display:inline-flex;align-items:center;padding:2px 8px;border-radius:12px;font-size:0.78rem;font-weight:600;letter-spacing:0.2px}
+.stock-badge--ok{background:#dcfce7;color:#166534}
+.stock-badge--low{background:#fef3c7;color:#92400e}
+.stock-badge--zero{background:#fee2e2;color:#991b1b}
+.stock-badge--neutral{background:#f1f5f9;color:#64748b}
+
+/* Restock button (card) */
+.btn-restock{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:8px;border:1px dashed #f59e0b;background:linear-gradient(135deg,#fffbeb,#fef3c7);color:#92400e;font-weight:600;font-size:0.75rem;cursor:pointer;transition:all 0.2s ease;white-space:nowrap}
+.btn-restock:hover{border-style:solid;background:linear-gradient(135deg,#fef3c7,#fde68a);transform:translateY(-1px);box-shadow:0 2px 8px rgba(245,158,11,0.15)}
+
+/* Restock button (inline in error list) */
+.btn-restock-inline{display:inline-flex;align-items:center;gap:3px;padding:3px 10px;margin-left:8px;border-radius:8px;border:1px solid #f59e0b;background:linear-gradient(135deg,#fffbeb,#fef3c7);color:#92400e;font-weight:600;font-size:0.82rem;cursor:pointer;transition:all 0.2s ease;vertical-align:middle}
+.btn-restock-inline:hover{background:linear-gradient(135deg,#fef3c7,#fde68a);transform:translateY(-1px);box-shadow:0 2px 8px rgba(245,158,11,0.2)}
+
+/* Quick-add stock form */
+.quick-stock-form{border:1px solid #f59e0b;border-radius:12px;padding:16px 20px;margin-bottom:16px;background:linear-gradient(135deg,#fffbeb 0%,#fef3c7 100%);box-shadow:0 4px 16px rgba(245,158,11,0.1);overflow:hidden}
+.quick-stock-form--review{margin-top:14px}
+.quick-stock-form__header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.quick-stock-form__title{display:flex;align-items:center;gap:8px;font-weight:700;font-size:0.95rem;color:#92400e}
+.quick-stock-form__icon{font-size:1.2rem}
+.quick-stock-form__close{background:none;border:none;font-size:1rem;color:#64748b;cursor:pointer;padding:4px 8px;border-radius:6px;transition:background 0.15s}
+.quick-stock-form__close:hover{background:rgba(0,0,0,0.05)}
+.quick-stock-form__body{display:flex;flex-direction:column;gap:12px}
+.quick-stock-form__fields{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.quick-stock-form__field{display:flex;flex-direction:column;gap:4px}
+.quick-stock-form__label{font-weight:600;font-size:0.82rem;color:#78350f;text-transform:uppercase;letter-spacing:0.3px}
+.quick-stock-form__value{font-size:1.1rem;font-weight:700;color:#92400e;padding:8px 10px;background:rgba(255,255,255,0.6);border-radius:8px}
+.quick-stock-form__value--highlight{color:#059669;background:rgba(5,150,105,0.08)}
+.quick-stock-form__actions{display:flex;gap:8px;justify-content:flex-end}
+.quick-stock-form__error{background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;padding:8px 12px;border-radius:8px;font-size:0.88rem;margin-top:4px}
+.quick-stock-form__success{background:#f0fdf4;border:1px solid #86efac;color:#166534;padding:8px 12px;border-radius:8px;font-size:0.88rem;margin-top:4px;display:flex;align-items:center;gap:6px;animation:fadeIn 0.3s ease}
+
+@media (max-width: 768px) {
+  .quick-stock-form__fields{grid-template-columns:1fr}
+  .quick-stock-form{padding:12px 14px}
+  .btn-restock-inline{display:flex;margin-left:0;margin-top:6px}
+}
+
+/* Dark mode: stock badges */
+:is(.dark) .stock-badge--ok{background:#052e16;color:#86efac}
+:is(.dark) .stock-badge--low{background:#451a03;color:#fbbf24}
+:is(.dark) .stock-badge--zero{background:#450a0a;color:#fca5a5}
+:is(.dark) .stock-badge--neutral{background:#1e293b;color:#94a3b8}
+
+/* Dark mode: restock buttons */
+:is(.dark) .btn-restock{background:linear-gradient(135deg,#451a03,#78350f);border-color:#f59e0b;color:#fde68a}
+:is(.dark) .btn-restock:hover{background:linear-gradient(135deg,#78350f,#92400e);box-shadow:0 2px 8px rgba(245,158,11,0.2)}
+:is(.dark) .btn-restock-inline{background:linear-gradient(135deg,#451a03,#78350f);border-color:#f59e0b;color:#fde68a}
+:is(.dark) .btn-restock-inline:hover{background:linear-gradient(135deg,#78350f,#92400e)}
+
+/* Dark mode: quick-add stock form */
+:is(.dark) .quick-stock-form{background:linear-gradient(135deg,#0f1729 0%,#1c1206 100%);border-color:#f59e0b;box-shadow:0 4px 16px rgba(245,158,11,0.1)}
+:is(.dark) .quick-stock-form__title{color:#fde68a}
+:is(.dark) .quick-stock-form__close{color:#94a3b8}
+:is(.dark) .quick-stock-form__close:hover{background:rgba(255,255,255,0.05)}
+:is(.dark) .quick-stock-form__label{color:#fbbf24}
+:is(.dark) .quick-stock-form__value{color:#fde68a;background:rgba(255,255,255,0.05)}
+:is(.dark) .quick-stock-form__value--highlight{color:#6ee7b7;background:rgba(110,231,183,0.08)}
+:is(.dark) .quick-stock-form__error{background:#1a0505;border-color:#7f1d1d;color:#fca5a5}
+:is(.dark) .quick-stock-form__success{background:#052e16;border-color:#166534;color:#86efac}
 </style>
