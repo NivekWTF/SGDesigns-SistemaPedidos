@@ -6,6 +6,7 @@ export interface Producto {
   precio_base: number
   costo_material?: number | null
   stock?: number | null
+  stock_group_id?: string | null
   activo: boolean
   created_at?: string | null
 }
@@ -18,5 +19,12 @@ export interface ProductoInput {
   costo_material?: number | null
   activo?: boolean
   stock?: number | null
+  stock_group_id?: string | null
+}
+
+export interface StockGroup {
+  id: string
+  nombre: string
+  created_at?: string | null
 }
 

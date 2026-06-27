@@ -1,9 +1,10 @@
 // src/composables/useProductos.ts
 import { ref } from 'vue'
 import { supabase } from '../lib/supabase'
-import type { Producto, ProductoInput } from '../types'
+import type { Producto, ProductoInput, StockGroup } from '../types'
 
 const productos = ref<Producto[]>([])
+const stockGroups = ref<StockGroup[]>([])
 const loading = ref(false)
 const errorMsg = ref<string | null>(null)
 
@@ -25,6 +26,58 @@ async function fetchProductos() {
   loading.value = false
 }
 
+async function fetchStockGroups() {
+  const { data, error } = await supabase
+    .from('stock_groups')
+    .select('*')
+    .order('nombre', { ascending: true })
+
+  if (error) {
+    console.warn('Failed to fetch stock groups', error)
+    return
+  }
+
+  stockGroups.value = data ?? []
+}
+
+async function crearStockGroup(nombre: string): Promise<StockGroup | null> {
+  const { data, error } = await supabase
+    .from('stock_groups')
+    .insert({ nombre })
+    .select()
+    .single()
+
+  if (error) {
+    errorMsg.value = error.message
+    throw error
+  }
+
+  stockGroups.value.push(data)
+  return data
+}
+
+async function eliminarStockGroup(id: string) {
+  const { error } = await supabase
+    .from('stock_groups')
+    .delete()
+    .eq('id', id)
+
+  if (error) {
+    errorMsg.value = error.message
+    throw error
+  }
+
+  stockGroups.value = stockGroups.value.filter(g => g.id !== id)
+  // Products that had this group will have stock_group_id set to null via ON DELETE SET NULL
+  await fetchProductos()
+}
+
+/** Get products that belong to the same stock group */
+function getGroupSiblings(stockGroupId: string | null | undefined, excludeId?: string): Producto[] {
+  if (!stockGroupId) return []
+  return productos.value.filter(p => p.stock_group_id === stockGroupId && p.id !== excludeId)
+}
+
 async function crearProducto(input: ProductoInput) {
   const { data, error } = await supabase
     .from('productos')
@@ -43,6 +96,7 @@ async function crearProducto(input: ProductoInput) {
   productos.value.push(data)
 
   // If initial stock > 0, record an expense for adding stock (compra)
+  // Only record ONE gasto even if product is in a stock group (single physical purchase)
   try {
     const stockQty = (input.stock ?? 0) as number
     if (stockQty > 0) {
@@ -60,6 +114,11 @@ async function crearProducto(input: ProductoInput) {
     }
   } catch (e) {
     console.warn('Failed to insert gasto for initial stock', e)
+  }
+
+  // Re-fetch to pick up trigger-synced stock for sibling products
+  if (input.stock_group_id) {
+    await fetchProductos()
   }
 
   return data
@@ -92,7 +151,7 @@ async function actualizarProducto(id: string, input: ProductoInput) {
   const idx = productos.value.findIndex(p => p.id === id)
   if (idx !== -1) productos.value[idx] = data
 
-  // If stock increased, insert gasto for the added quantity using costo_material
+  // If stock increased, insert ONE gasto for the added quantity (single physical purchase)
   try {
     const delta = (newStock ?? 0) - (prevStock ?? 0)
     if (delta > 0) {
@@ -111,6 +170,9 @@ async function actualizarProducto(id: string, input: ProductoInput) {
   } catch (e) {
     console.warn('Failed to insert gasto for stock update', e)
   }
+
+  // Re-fetch to pick up trigger-synced stock for sibling products
+  await fetchProductos()
 
   return data
 }
@@ -132,9 +194,14 @@ async function eliminarProducto(id: string) {
 export function useProductos() {
   return {
     productos,
+    stockGroups,
     loading,
     errorMsg,
     fetchProductos,
+    fetchStockGroups,
+    crearStockGroup,
+    eliminarStockGroup,
+    getGroupSiblings,
     crearProducto,
     actualizarProducto,
     eliminarProducto

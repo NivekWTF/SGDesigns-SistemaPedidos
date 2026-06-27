@@ -58,6 +58,7 @@
         <div v-for="p in paginatedProductos" :key="p.id" class="orders-row">
           <div>
             {{ p.nombre }}
+            <span v-if="p.stock_group_id" class="link-badge" :title="getGroupTooltip(p)">🔗 {{ getGroupName(p.stock_group_id) }}</span>
           </div>
           <div>{{ p.unidad || '-' }}</div>
           <div>{{ formatCurrency(p.precio_base) }}</div>
@@ -99,9 +100,12 @@ import NewProductForm from './NewProductForm.vue'
 
 const {
   productos,
+  stockGroups,
   loading,
   errorMsg,
   fetchProductos,
+  fetchStockGroups,
+  getGroupSiblings,
   crearProducto,
   actualizarProducto,
   eliminarProducto
@@ -189,7 +193,20 @@ async function onCreatedProduct(){
 
 onMounted(() => {
   fetchProductos()
+  fetchStockGroups()
 })
+
+function getGroupName(groupId: string | null | undefined): string {
+  if (!groupId) return ''
+  const group = stockGroups.value.find(g => g.id === groupId)
+  return group?.nombre || ''
+}
+
+function getGroupTooltip(p: any): string {
+  const siblings = getGroupSiblings(p.stock_group_id, p.id)
+  if (siblings.length === 0) return 'Grupo de stock (sin otros miembros)'
+  return 'Comparte stock con: ' + siblings.map(s => s.nombre).join(', ')
+}
 
 function resetForm() {
   form.nombre = ''
@@ -266,6 +283,7 @@ async function borrar(id: string) {
 .stock-zero{background:#ef4444}
 .stock-low{background:#f59e0b}
 .stock-ok{background:#16a34a}
+.link-badge{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:12px;font-size:0.75rem;font-weight:600;background:#dbeafe;color:#1d4ed8;cursor:help;vertical-align:middle}
 .stock-neutral{background:#94a3b8;color:#fff}
 
 /* Dark mode */
@@ -285,4 +303,5 @@ async function borrar(id: string) {
 :is(.dark) .pagination button{background:#0f1729;border-color:#334155;color:#cbd5e1}
 :is(.dark) .pagination select{background:#0f1729;border-color:#334155;color:#cbd5e1}
 :is(.dark) .pagination{color:#94a3b8}
+:is(.dark) .link-badge{background:#1e3a5f;color:#93c5fd}
 </style>
