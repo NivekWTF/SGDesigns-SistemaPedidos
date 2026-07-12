@@ -874,12 +874,12 @@ async function borrar(id: string) {
 
 @media (max-width: 768px) {
   .mobile-only { display:block !important; }
+  .mobile-cards-container.mobile-only { display:flex !important; }
   .desktop-only { display:none !important; }
 }
 
 /* ===== Mobile Order Cards ===== */
 .mobile-cards-container {
-  display:flex;
   flex-direction:column;
   gap:12px;
   margin-top:16px;
