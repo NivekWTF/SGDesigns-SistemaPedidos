@@ -184,7 +184,8 @@
       </template>
       <p v-else-if="errorMsg">⚠️ {{ errorMsg }}</p>
 
-      <div v-else class="orders-table-wrapper">
+      <!-- ===== Desktop table view (hidden on mobile) ===== -->
+      <div v-else class="orders-table-wrapper desktop-only">
         <div class="orders-table">
           <div class="orders-row header">
             <div>ID Pedido</div>
@@ -196,7 +197,7 @@
             <div>Acciones</div>
           </div>
 
-          <div v-for="p in filteredPedidos" :key="p.id" class="orders-row">
+          <div v-for="p in paginatedPedidos" :key="p.id" class="orders-row">
             <div class="order-id">
               <div class="id-main">{{ p.folio || ('#' + p.id.slice(0,8)) }}</div>
               <div class="id-sub">{{ formatDateOnly(p.created_at) }}</div>
@@ -240,12 +241,108 @@
           </div>
         </div>
       </div>
+
+      <!-- ===== Mobile card view (hidden on desktop) ===== -->
+      <div v-if="!loading && !errorMsg" class="mobile-cards-container mobile-only">
+        <div v-if="paginatedPedidos.length === 0" class="empty-state">
+          <span class="empty-icon">📋</span>
+          <p>No se encontraron pedidos</p>
+        </div>
+
+        <div v-for="p in paginatedPedidos" :key="'card-' + p.id" class="order-card" @click="viewDetails(p)">
+          <!-- Card header -->
+          <div class="card-header">
+            <div class="card-id-date">
+              <span class="card-folio">{{ p.folio || ('#' + p.id.slice(0,8)) }}</span>
+              <span class="card-date">📅 {{ formatDateOnly(p.created_at) }}</span>
+            </div>
+            <span :class="['badge', statusClass(p.estado)]">{{ p.estado }}</span>
+          </div>
+
+          <!-- Card body -->
+          <div class="card-body">
+            <div class="card-row">
+              <span class="card-label">👤 Cliente</span>
+              <span class="card-value card-client">{{ p.clientes?.nombre || 'Sin cliente' }}</span>
+            </div>
+            <div class="card-row">
+              <span class="card-label">📝 Descripción</span>
+              <span class="card-value card-desc">{{ formatDescription(p) }}</span>
+            </div>
+            <div class="card-row">
+              <span class="card-label">📦 Cantidad</span>
+              <span class="card-value">{{ totalItemsQty(p) }} item{{ totalItemsQty(p) !== 1 ? 's' : '' }}</span>
+            </div>
+          </div>
+
+          <!-- Card footer -->
+          <div class="card-footer">
+            <div class="card-totals">
+              <div class="card-total">
+                <span class="card-total-label">Total</span>
+                <span class="card-total-value">{{ formatCurrency(Number(p.total) || 0) }}</span>
+              </div>
+              <div v-if="remaining(p) > 0" class="card-remaining">
+                <span class="card-total-label">Restante</span>
+                <span class="card-total-value remaining-val">{{ formatCurrency(remaining(p)) }}</span>
+              </div>
+            </div>
+            <div class="card-actions" @click.stop>
+              <button class="card-btn card-btn-edit" @click="editPedido(p)">✏️ Editar</button>
+              <button v-if="remaining(p) > 0" class="card-btn card-btn-pay" @click="openAnticipo(p)">💳 Pagar</button>
+              <button class="card-btn card-btn-menu" @click="toggleMenu(p.id)">⋯</button>
+              <div v-if="openMenuId === p.id" class="card-menu-pop">
+                <button @click="viewDetails(p)">📄 Ver detalles</button>
+                <template v-if="isAdmin">
+                  <div class="menu-divider"></div>
+                  <button @click="borrar(p.id)" style="color:#ef4444">🗑️ Eliminar</button>
+                </template>
+                <div class="menu-divider"></div>
+                <div class="status-actions">
+                  <div class="status-label">Cambiar estado</div>
+                  <button class="status-btn" @click="setEstado(p, 'PENDIENTE')">PENDIENTE</button>
+                  <button class="status-btn" @click="setEstado(p, 'EN_PRODUCCION')">EN_PRODUCCION</button>
+                  <button class="status-btn" @click="setEstado(p, 'TERMINADO')">TERMINADO</button>
+                  <button class="status-btn" @click="setEstado(p, 'ENTREGADO')">ENTREGADO</button>
+                  <button class="status-btn" @click="setEstado(p, 'CANCELADO')">CANCELAR</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== Pagination controls ===== -->
+      <div v-if="!loading && !errorMsg && totalPages > 1" class="pagination">
+        <button class="page-btn" :disabled="currentPage === 1" @click="goToPage(1)">
+          «
+        </button>
+        <button class="page-btn" :disabled="currentPage === 1" @click="goToPage(currentPage - 1)">
+          ‹
+        </button>
+
+        <template v-for="pg in visiblePages" :key="pg">
+          <span v-if="pg === '....'" class="page-ellipsis">…</span>
+          <button v-else :class="['page-btn', { active: pg === currentPage }]" @click="goToPage(pg as number)">
+            {{ pg }}
+          </button>
+        </template>
+
+        <button class="page-btn" :disabled="currentPage === totalPages" @click="goToPage(currentPage + 1)">
+          ›
+        </button>
+        <button class="page-btn" :disabled="currentPage === totalPages" @click="goToPage(totalPages)">
+          »
+        </button>
+
+        <span class="page-info">{{ currentPage }} / {{ totalPages }} · {{ filteredPedidos.length }} pedidos</span>
+      </div>
     </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, ref, computed, watch } from 'vue'
 import { usePedidos } from '../composables/usePedidos'
 import { useAuth } from '../composables/useAuth'
 import { useFormat } from '../composables/useFormat'
@@ -404,6 +501,51 @@ const filteredPedidos = computed(() => {
     return true
   })
 })
+
+// ── Pagination ──
+const PAGE_SIZE = 20
+const currentPage = ref(1)
+
+// Reset to page 1 whenever filters change
+watch([searchTerm, statusFilter, startDate, endDate, onlyWithAnticipo, onlyWithNotes], () => {
+  currentPage.value = 1
+})
+
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredPedidos.value.length / PAGE_SIZE)))
+
+const paginatedPedidos = computed(() => {
+  const start = (currentPage.value - 1) * PAGE_SIZE
+  return filteredPedidos.value.slice(start, start + PAGE_SIZE)
+})
+
+function goToPage(page: number) {
+  currentPage.value = Math.max(1, Math.min(page, totalPages.value))
+  // Scroll to top of list section
+  const el = document.querySelector('.list-section')
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+// Visible page numbers with ellipsis
+const visiblePages = computed(() => {
+  const total = totalPages.value
+  const current = currentPage.value
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+
+  const pages: (number | string)[] = []
+  pages.push(1)
+  if (current > 3) pages.push('....')
+  for (let i = Math.max(2, current - 1); i <= Math.min(total - 1, current + 1); i++) {
+    pages.push(i)
+  }
+  if (current < total - 2) pages.push('....')
+  pages.push(total)
+  return pages
+})
+
+function totalItemsQty(p: any): number {
+  const items = p.pedido_items || []
+  return items.reduce((acc: number, it: any) => acc + (Number(it.cantidad) || 0), 0)
+}
 
 const pendientesCount = computed(() => pedidos.value.filter(p => p.estado === 'PENDIENTE').length)
 const completadosCount = computed(() => pedidos.value.filter(p => p.estado === 'TERMINADO' || p.estado === 'ENTREGADO').length)
@@ -725,4 +867,313 @@ async function borrar(id: string) {
 :is(.dark) .payment-option{background:#0f1729;border-color:#334155;color:#cbd5e1}
 :is(.dark) .payment-option:hover{border-color:#059669;background:#052e16}
 :is(.dark) .payment-option-active{border-color:#059669;background:#052e16}
+
+/* ===== Responsive visibility ===== */
+.mobile-only { display:none; }
+.desktop-only { display:block; }
+
+@media (max-width: 768px) {
+  .mobile-only { display:block !important; }
+  .desktop-only { display:none !important; }
+}
+
+/* ===== Mobile Order Cards ===== */
+.mobile-cards-container {
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  margin-top:16px;
+  padding-bottom:24px;
+}
+
+.empty-state {
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  padding:48px 16px;
+  color:#94a3b8;
+  font-size:0.95rem;
+}
+.empty-icon {
+  font-size:2.5rem;
+  margin-bottom:8px;
+  opacity:0.6;
+}
+
+.order-card {
+  background:#fff;
+  border:1px solid #eef2f5;
+  border-radius:14px;
+  box-shadow:0 2px 12px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.02);
+  overflow:hidden;
+  transition:transform 0.15s ease, box-shadow 0.15s ease;
+  cursor:pointer;
+  border-left:4px solid #e2e8f0;
+  animation: cardFadeIn 0.25s ease both;
+}
+.order-card:active {
+  transform:scale(0.985);
+  box-shadow:0 1px 6px rgba(0,0,0,0.06);
+}
+
+@keyframes cardFadeIn {
+  from { opacity:0; transform:translateY(8px); }
+  to { opacity:1; transform:translateY(0); }
+}
+
+/* Status-based left border color */
+.order-card:has(.status-pending) { border-left-color:#f59e0b; }
+.order-card:has(.status-blue) { border-left-color:#3b82f6; }
+.order-card:has(.status-gray) { border-left-color:#64748b; }
+.order-card:has(.status-green) { border-left-color:#10b981; }
+.order-card:has(.status-red) { border-left-color:#ef4444; }
+
+.card-header {
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  padding:14px 16px 10px;
+  gap:10px;
+}
+.card-id-date {
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+}
+.card-folio {
+  font-weight:700;
+  font-size:0.95rem;
+  color:#0f172a;
+  letter-spacing:0.01em;
+}
+.card-date {
+  font-size:0.78rem;
+  color:#94a3b8;
+}
+
+.card-body {
+  padding:0 16px 12px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.card-row {
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+.card-label {
+  font-size:0.72rem;
+  color:#94a3b8;
+  font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:0.04em;
+}
+.card-value {
+  font-size:0.88rem;
+  color:#334155;
+  line-height:1.35;
+}
+.card-client {
+  font-weight:600;
+  color:#0f172a;
+}
+.card-desc {
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.card-footer {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:10px 16px 14px;
+  border-top:1px solid #f1f5f9;
+  background:#fafbfc;
+  gap:8px;
+}
+
+.card-totals {
+  display:flex;
+  gap:16px;
+}
+.card-total, .card-remaining {
+  display:flex;
+  flex-direction:column;
+}
+.card-total-label {
+  font-size:0.68rem;
+  color:#94a3b8;
+  font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:0.04em;
+}
+.card-total-value {
+  font-weight:700;
+  font-size:0.95rem;
+  color:#0f172a;
+}
+.remaining-val {
+  color:#dc2626;
+}
+
+.card-actions {
+  display:flex;
+  gap:6px;
+  align-items:center;
+  position:relative;
+}
+.card-btn {
+  padding:7px 12px;
+  border-radius:8px;
+  font-size:0.8rem;
+  font-weight:600;
+  border:none;
+  cursor:pointer;
+  transition:all 0.15s;
+  white-space:nowrap;
+}
+.card-btn-edit {
+  background:#059669;
+  color:white;
+}
+.card-btn-edit:hover { background:#047857; }
+.card-btn-pay {
+  background:#eff6ff;
+  border:1px solid #bfdbfe;
+  color:#2563eb;
+}
+.card-btn-pay:hover { background:#dbeafe; }
+.card-btn-menu {
+  background:#f1f5f9;
+  border:1px solid #e2e8f0;
+  color:#475569;
+  padding:7px 10px;
+  font-size:1rem;
+  line-height:1;
+}
+.card-btn-menu:hover { background:#e2e8f0; }
+
+.card-menu-pop {
+  position:absolute;
+  bottom:100%;
+  right:0;
+  margin-bottom:6px;
+  background:#fff;
+  border:1px solid #eef2f5;
+  border-radius:10px;
+  box-shadow:0 8px 24px rgba(0,0,0,0.1);
+  padding:8px;
+  z-index:130;
+  min-width:160px;
+  white-space:nowrap;
+}
+.card-menu-pop button {
+  display:block;
+  width:100%;
+  text-align:left;
+  padding:8px 12px;
+  border:none;
+  background:transparent;
+  font-size:0.88rem;
+  border-radius:6px;
+  transition:background 0.12s;
+}
+.card-menu-pop button:hover { background:#f1f5f9; }
+
+/* ===== Pagination ===== */
+.pagination {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  margin-top:20px;
+  padding:16px 0;
+  flex-wrap:wrap;
+}
+.page-btn {
+  min-width:36px;
+  height:36px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border:1px solid #e2e8f0;
+  background:#fff;
+  border-radius:8px;
+  font-size:0.88rem;
+  font-weight:500;
+  color:#475569;
+  cursor:pointer;
+  transition:all 0.15s;
+  padding:0 8px;
+}
+.page-btn:hover:not(:disabled):not(.active) { background:#f1f5f9;border-color:#cbd5e1;color:#0f172a; }
+.page-btn:disabled { opacity:0.35;cursor:not-allowed; }
+.page-btn.active {
+  background:#059669;
+  color:white;
+  border-color:#059669;
+  font-weight:700;
+  box-shadow:0 2px 8px rgba(5,150,105,0.25);
+}
+.page-ellipsis {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:28px;
+  height:36px;
+  color:#94a3b8;
+  font-size:0.95rem;
+  user-select:none;
+}
+.page-info {
+  margin-left:12px;
+  font-size:0.82rem;
+  color:#94a3b8;
+  white-space:nowrap;
+}
+
+@media (max-width: 768px) {
+  .pagination { gap:4px; margin-top:14px; padding:12px 0; }
+  .page-btn { min-width:32px; height:32px; font-size:0.82rem; }
+  .page-info { width:100%; text-align:center; margin-left:0; margin-top:6px; }
+}
+
+/* ===== Dark mode for mobile cards & pagination ===== */
+:is(.dark) .order-card {
+  background:#111c2e;
+  border-color:#1e293b;
+  border-left-color:#334155;
+  box-shadow:0 2px 12px rgba(0,0,0,0.15);
+}
+:is(.dark) .order-card:has(.status-pending) { border-left-color:#f59e0b; }
+:is(.dark) .order-card:has(.status-blue) { border-left-color:#3b82f6; }
+:is(.dark) .order-card:has(.status-gray) { border-left-color:#64748b; }
+:is(.dark) .order-card:has(.status-green) { border-left-color:#10b981; }
+:is(.dark) .order-card:has(.status-red) { border-left-color:#ef4444; }
+
+:is(.dark) .card-folio { color:#e2e8f0; }
+:is(.dark) .card-date { color:#64748b; }
+:is(.dark) .card-label { color:#64748b; }
+:is(.dark) .card-value { color:#cbd5e1; }
+:is(.dark) .card-client { color:#e2e8f0; }
+:is(.dark) .card-footer { background:#0f1729; border-top-color:#1e293b; }
+:is(.dark) .card-total-value { color:#e2e8f0; }
+:is(.dark) .remaining-val { color:#f59e0b; }
+:is(.dark) .card-btn-edit { background:#059669; color:#fff; }
+:is(.dark) .card-btn-pay { background:#1e3a5f; border-color:#1d4ed8; color:#93c5fd; }
+:is(.dark) .card-btn-menu { background:#1e293b; border-color:#334155; color:#94a3b8; }
+:is(.dark) .card-menu-pop { background:#111c2e; border-color:#1e293b; box-shadow:0 8px 24px rgba(0,0,0,0.35); }
+:is(.dark) .card-menu-pop button { color:#cbd5e1; }
+:is(.dark) .card-menu-pop button:hover { background:#1e293b; }
+:is(.dark) .empty-state { color:#64748b; }
+
+:is(.dark) .page-btn { background:#111c2e; border-color:#1e293b; color:#94a3b8; }
+:is(.dark) .page-btn:hover:not(:disabled):not(.active) { background:#1e293b; color:#e2e8f0; }
+:is(.dark) .page-btn.active { background:#059669; border-color:#059669; color:white; }
+:is(.dark) .page-info { color:#64748b; }
 </style>
