@@ -7,6 +7,12 @@
       </div>
     </header>
 
+    <template v-if="loading">
+      <section class="stats-grid">
+        <SkeletonLoader variant="card" :count="4" />
+      </section>
+    </template>
+    <template v-else>
     <section class="stats-grid">
       <div class="stat-card">
         <div class="stat-num">{{ pedidos.length }}</div>
@@ -32,6 +38,7 @@
         <div class="stat-label">Productos bajo stock</div>
       </div>
     </section>
+    </template>
 
     <!-- New order wizard modal rendered when Add Order is clicked -->
     <NewOrderWizard v-if="showNewOrder" :initialPedido="selectedPedido" :key="selectedPedido ? selectedPedido.id : 'new'" @close="showNewOrder = false; selectedPedido = null" @created="onNewCreated" />
@@ -159,7 +166,22 @@
         <label style="display:inline-flex;align-items:center;gap:8px"><input type="checkbox" v-model="onlyWithNotes" /> Solo con notas</label>
       </div>
 
-      <p v-if="loading">Cargando...</p>
+      <template v-if="loading">
+        <div class="orders-table-wrapper">
+          <div class="orders-table">
+            <div class="orders-row header">
+              <div>ID Pedido</div>
+              <div>Descripción</div>
+              <div>Cliente</div>
+              <div>Estado</div>
+              <div>Importe</div>
+              <div>Restan</div>
+              <div>Acciones</div>
+            </div>
+            <SkeletonLoader variant="table-row" :count="6" :columns="7" />
+          </div>
+        </div>
+      </template>
       <p v-else-if="errorMsg">⚠️ {{ errorMsg }}</p>
 
       <div v-else class="orders-table-wrapper">
@@ -230,6 +252,7 @@ import { useFormat } from '../composables/useFormat'
 import { useProductos } from '../composables/useProductos'
 import NewOrderWizard from './NewOrderWizard.vue'
 import OrderDetailsModal from './OrderDetailsModal.vue'
+import SkeletonLoader from './ui/SkeletonLoader.vue'
 import type { EstadoPedido } from '../types'
 
 const {

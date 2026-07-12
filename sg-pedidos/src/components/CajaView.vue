@@ -120,7 +120,9 @@
               <div>Metodo</div>
               <div class="text-right">Monto</div>
             </div>
-            <div v-if="loading" class="px-5 py-6 text-sm text-slate-400">Cargando...</div>
+            <div v-if="loading" class="px-5 py-3">
+              <SkeletonLoader variant="table-row" :count="5" :columns="5" />
+            </div>
             <div v-else-if="errorMsg" class="px-5 py-6 text-sm text-rose-500">{{ errorMsg }}</div>
             <div v-else>
               <div
@@ -213,6 +215,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useCaja } from '../composables/useCaja'
 import type { MovimientoCajaInput, TipoMovimientoCaja } from '../types'
+import SkeletonLoader from './ui/SkeletonLoader.vue'
 
 const { cajaActiva, movimientos, loading, errorMsg, ensureCajaActiva, abrirCaja, fetchMovimientos, crearMovimiento } = useCaja()
 

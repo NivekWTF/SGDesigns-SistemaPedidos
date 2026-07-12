@@ -7,6 +7,12 @@
       </div>
     </header>
 
+    <template v-if="loading">
+      <section class="stats-grid">
+        <SkeletonLoader variant="card" :count="2" />
+      </section>
+    </template>
+    <template v-else>
     <section class="stats-grid">
       <div class="stat-card">
         <div class="stat-num">{{ gastos.length }}</div>
@@ -17,6 +23,7 @@
         <div class="stat-label">Monto Total</div>
       </div>
     </section>
+    </template>
 
     <!-- Formulario para nuevo gasto -->
     <section v-if="showForm" class="form-overlay" @click.self="showForm = false">
@@ -53,7 +60,18 @@
         <button type="button" class="btn-primary" @click="openForm">+ Nuevo gasto</button>
       </div>
 
-      <p v-if="loading">Cargando...</p>
+      <template v-if="loading">
+        <div class="orders-table">
+          <div class="orders-row header">
+            <div>Fecha</div>
+            <div>Descripción</div>
+            <div>Monto</div>
+            <div>Referencia</div>
+            <div>Acciones</div>
+          </div>
+          <SkeletonLoader variant="table-row" :count="5" :columns="5" />
+        </div>
+      </template>
       <p v-else-if="errorMsg && !gastos.length">⚠️ {{ errorMsg }}</p>
 
       <div v-else class="orders-table">
@@ -95,6 +113,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useGastos } from '../composables/useGastos'
 import type { GastoInput } from '../composables/useGastos'
+import SkeletonLoader from './ui/SkeletonLoader.vue'
 
 const { gastos, loading, errorMsg, fetchGastos, crearGasto, eliminarGasto } = useGastos()
 

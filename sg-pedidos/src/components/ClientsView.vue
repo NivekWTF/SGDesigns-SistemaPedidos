@@ -8,6 +8,12 @@
         <!-- header actions moved below list title -->
     </header>
 
+    <template v-if="loading">
+      <section class="stats-grid">
+        <SkeletonLoader variant="card" :count="4" />
+      </section>
+    </template>
+    <template v-else>
     <section class="stats-grid">
       <div class="stat-card">
         <div class="stat-num">{{ clientes.length }}</div>
@@ -26,6 +32,7 @@
         <div class="stat-label">Activos</div>
       </div>
     </section>
+    </template>
 
     <!-- FORMULARIO -->
     <!-- form moved to modal -->
@@ -42,7 +49,18 @@
         <button type="button" class="btn-primary" @click="openNewClient">+ Add Cliente</button>
       </div>
 
-      <p v-if="loading">Cargando...</p>
+      <template v-if="loading">
+        <div class="orders-table">
+          <div class="orders-row header">
+            <div>Nombre</div>
+            <div>Teléfono</div>
+            <div>Correo</div>
+            <div>Fecha</div>
+            <div>Acciones</div>
+          </div>
+          <SkeletonLoader variant="table-row" :count="5" :columns="5" />
+        </div>
+      </template>
       <p v-else-if="errorMsg">⚠️ {{ errorMsg }}</p>
 
       <div v-else class="orders-table">
@@ -88,6 +106,7 @@ import { onMounted, reactive, ref, computed } from 'vue'
 import { useClientes } from '../composables/useClientes'
 import { useFormat } from '../composables/useFormat'
 import NewClientForm from './NewClientForm.vue'
+import SkeletonLoader from './ui/SkeletonLoader.vue'
 
 const {
   clientes,

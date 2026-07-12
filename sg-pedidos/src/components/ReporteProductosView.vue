@@ -50,9 +50,8 @@
     <!-- Resultados -->
     <section v-if="hasSearched" class="space-y-5">
       <!-- Loading -->
-      <div v-if="loading" class="flex items-center justify-center gap-3 py-14">
-        <div class="h-7 w-7 animate-spin rounded-full border-[3px] border-slate-200 dark:border-slate-700 border-t-blue-500"></div>
-        <span class="font-body text-sm text-slate-400 dark:text-slate-500">Cargando...</span>
+      <div v-if="loading" class="py-4">
+        <SkeletonLoader variant="table-row" :count="5" :columns="4" />
       </div>
 
       <!-- Error -->
@@ -127,6 +126,7 @@
 import { ref, computed } from 'vue'
 import { useReportes } from '../composables/useReportes'
 import { Search, RotateCcw, AlertTriangle, PackageCheck, DollarSign, ClipboardList } from 'lucide-vue-next'
+import SkeletonLoader from './ui/SkeletonLoader.vue'
 
 const { ventasProducto, loading, errorMsg } = useReportes()
 

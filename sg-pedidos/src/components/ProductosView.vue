@@ -8,6 +8,12 @@
       <!-- header actions moved below the list title -->
     </header>
 
+    <template v-if="loading">
+      <section class="stats-grid">
+        <SkeletonLoader variant="card" :count="4" />
+      </section>
+    </template>
+    <template v-else>
     <section class="stats-grid">
       <div class="stat-card">
         <div class="stat-num">{{ productos.length }}</div>
@@ -26,6 +32,7 @@
         <div class="stat-label">Unidades</div>
       </div>
     </section>
+    </template>
 
     <!-- form moved to modal -->
     <NewProductForm v-if="showNewProduct" :initialProduct="editingProduct" @close="showNewProduct = false; editingProduct = null" @created="onCreatedProduct" />
@@ -41,7 +48,20 @@
         <button type="button" class="btn-primary" @click="openNewProduct">+ Nuevo producto</button>
       </div>
 
-      <p v-if="loading">Cargando...</p>
+      <template v-if="loading">
+        <div class="orders-table">
+          <div class="orders-row header">
+            <div>Nombre</div>
+            <div>Unidad</div>
+            <div>Precio base</div>
+            <div>Costo material</div>
+            <div>Stock</div>
+            <div>Activo</div>
+            <div>Acciones</div>
+          </div>
+          <SkeletonLoader variant="table-row" :count="5" :columns="7" />
+        </div>
+      </template>
       <p v-else-if="errorMsg">⚠️ {{ errorMsg }}</p>
 
       <div v-else class="orders-table">
@@ -97,6 +117,7 @@ import { onMounted, reactive, ref, computed } from 'vue'
 import { useProductos } from '../composables/useProductos'
 import { useFormat } from '../composables/useFormat'
 import NewProductForm from './NewProductForm.vue'
+import SkeletonLoader from './ui/SkeletonLoader.vue'
 
 const {
   productos,

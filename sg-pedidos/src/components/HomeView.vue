@@ -15,7 +15,10 @@
         </div>
 
         <!-- ROW 1: Hero KPI cards -->
-        <section class="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-4">
+        <template v-if="loading">
+          <SkeletonLoader variant="kpi" :count="4" />
+        </template>
+        <section v-else class="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-4">
           <!-- Ventas Hoy -->
           <div
             class="min-w-0 overflow-hidden rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-emerald-100/70 p-8 shadow-[0_8px_24px_rgba(15,23,42,0.06)] dark:border-emerald-500/20 dark:bg-gradient-to-br dark:from-[#0d3320] dark:to-[#052e16] dark:shadow-[0_10px_30px_rgba(0,0,0,0.22)]"
@@ -269,8 +272,8 @@
             </div>
 
             <div>
-              <div v-if="loading" class="flex items-center justify-center py-12">
-                <div class="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-blue-500 dark:border-slate-700 dark:border-t-blue-400"></div>
+              <div v-if="loading" class="py-4">
+                <SkeletonLoader variant="list" :count="6" />
               </div>
 
               <template v-else>
@@ -307,8 +310,9 @@
             </div>
 
             <div class="space-y-4 p-6">
-              <div v-if="loading" class="flex items-center justify-center py-12">
-                <div class="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-cyan-500 dark:border-slate-700 dark:border-t-cyan-400"></div>
+              <div v-if="loading" class="space-y-4">
+                <SkeletonLoader variant="chart" />
+                <SkeletonLoader variant="list" :count="4" />
               </div>
 
               <div v-else-if="isChartEmpty" class="py-12 text-center text-sm text-slate-400">
@@ -362,8 +366,9 @@
             </div>
 
             <div class="space-y-5 p-6">
-              <div v-if="loading" class="flex items-center justify-center py-10">
-                <div class="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-emerald-500 dark:border-slate-700 dark:border-t-emerald-400"></div>
+              <div v-if="loading" class="space-y-4">
+                <SkeletonLoader variant="chart" />
+                <SkeletonLoader variant="list" :count="4" />
               </div>
 
               <div v-else-if="isWeeklyProfitChartEmpty" class="py-10 text-center text-sm text-slate-400">
@@ -435,8 +440,9 @@
             </div>
 
             <div class="space-y-5 p-6">
-              <div v-if="loading" class="flex items-center justify-center py-10">
-                <div class="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-amber-500 dark:border-slate-700 dark:border-t-amber-400"></div>
+              <div v-if="loading" class="space-y-4">
+                <SkeletonLoader variant="chart" />
+                <SkeletonLoader variant="list" :count="3" />
               </div>
 
               <div
@@ -498,6 +504,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useReportes, reportTimeZone } from '../composables/useReportes'
 import SVGBarChart from './ui/SVGBarChart.vue'
+import SkeletonLoader from './ui/SkeletonLoader.vue'
 import {
   TrendingUp,
   BarChart3,

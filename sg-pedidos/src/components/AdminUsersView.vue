@@ -98,7 +98,19 @@
         <button class="btn-ghost" @click="reloadProfiles">Actualizar</button>
       </div>
 
-      <p v-if="loading">Cargando...</p>
+      <template v-if="loading">
+        <div class="orders-table">
+          <div class="orders-row header">
+            <div>Usuario</div>
+            <div>Correo</div>
+            <div>Rol actual</div>
+            <div>Nuevo rol</div>
+            <div>Alta</div>
+            <div>Acciones</div>
+          </div>
+          <SkeletonLoader variant="table-row" :count="5" :columns="6" />
+        </div>
+      </template>
       <p v-else-if="errorMsg">⚠️ {{ errorMsg }}</p>
 
       <div v-else class="orders-table">
@@ -166,6 +178,7 @@ import { getDefaultRouteForRole, useAuth } from '../composables/useAuth'
 import { useFormat } from '../composables/useFormat'
 import { useUserProfiles } from '../composables/useUserProfiles'
 import type { AppRole, UserProfile } from '../types'
+import SkeletonLoader from './ui/SkeletonLoader.vue'
 
 const { profiles, loading, creating, errorMsg, fetchProfiles, updateUserRole, createUser } = useUserProfiles()
 const { user, refreshProfile } = useAuth()
