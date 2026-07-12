@@ -906,7 +906,7 @@ async function borrar(id: string) {
   border:1px solid #eef2f5;
   border-radius:14px;
   box-shadow:0 2px 12px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.02);
-  overflow:hidden;
+  overflow:visible;
   transition:transform 0.15s ease, box-shadow 0.15s ease;
   cursor:pointer;
   border-left:4px solid #e2e8f0;
@@ -989,12 +989,19 @@ async function borrar(id: string) {
 
 .card-footer {
   display:flex;
-  justify-content:space-between;
-  align-items:center;
-  padding:10px 16px 14px;
+  flex-direction:column;
+  padding:10px 14px 14px;
   border-top:1px solid #f1f5f9;
   background:#fafbfc;
-  gap:8px;
+  gap:10px;
+  border-radius:0 0 14px 10px;
+  overflow:visible;
+}
+.card-footer-row {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  width:100%;
 }
 
 .card-totals {
@@ -1026,6 +1033,8 @@ async function borrar(id: string) {
   gap:6px;
   align-items:center;
   position:relative;
+  flex-wrap:wrap;
+  width:100%;
 }
 .card-btn {
   padding:7px 12px;
@@ -1036,6 +1045,9 @@ async function borrar(id: string) {
   cursor:pointer;
   transition:all 0.15s;
   white-space:nowrap;
+  flex:1 1 auto;
+  text-align:center;
+  min-width:0;
 }
 .card-btn-edit {
   background:#059669;
@@ -1055,6 +1067,7 @@ async function borrar(id: string) {
   padding:7px 10px;
   font-size:1rem;
   line-height:1;
+  flex:0 0 auto;
 }
 .card-btn-menu:hover { background:#e2e8f0; }
 
