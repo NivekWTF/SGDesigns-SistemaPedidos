@@ -53,37 +53,55 @@ function currency(n: number | Ref<number>): string {
   return (val ?? 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })
 }
 
-// ------------------ store ------------------
-export function useQuoteStore() {
-  const state = reactive<QuoteState>({
-    header: {
-      series: 'SG',
-      date: todayISO(),
-      folio: '',
-      company: {
-        name: 'SG Designs',
-        rfc: 'SEGK0106071D1',
-        email: '',
-        phone: '(697) 104 2067',
-        address: 'Av. Ignacio Rayón #79, Col. Centro,\nPericos, Mocorito, Sinaloa.',
-      },
-      logoDataUrl: '',
+// ------------------ env helpers ------------------
+const ENV_BUSINESS_NAME    = (import.meta.env.VITE_BUSINESS_NAME    as string) || 'Mi Imprenta'
+const ENV_BUSINESS_RFC     = (import.meta.env.VITE_BUSINESS_RFC     as string) || ''
+const ENV_BUSINESS_EMAIL   = (import.meta.env.VITE_BUSINESS_EMAIL   as string) || ''
+const ENV_BUSINESS_PHONE   = (import.meta.env.VITE_BUSINESS_PHONE   as string) || ''
+const ENV_BUSINESS_ADDRESS = (import.meta.env.VITE_BUSINESS_ADDRESS as string) || ''
+const ENV_BUSINESS_SERIES  = (import.meta.env.VITE_BUSINESS_SERIES  as string) || 'COT'
+const ENV_BUSINESS_LOGO    = (import.meta.env.VITE_BUSINESS_LOGO_URL as string) || '/logo.png'
+const ENV_TAX_RATE         = parseFloat((import.meta.env.VITE_BUSINESS_TAX_RATE as string) || '0.16')
+
+function buildDefaultHeader(): Header {
+  return {
+    series: ENV_BUSINESS_SERIES,
+    date: todayISO(),
+    folio: '',
+    company: {
+      name: ENV_BUSINESS_NAME,
+      rfc: ENV_BUSINESS_RFC,
+      email: ENV_BUSINESS_EMAIL,
+      phone: ENV_BUSINESS_PHONE,
+      address: ENV_BUSINESS_ADDRESS,
     },
+    logoDataUrl: '',
+  }
+}
+
+function buildDefaultState(): QuoteState {
+  return {
+    header: buildDefaultHeader(),
     client: { name: '', address: '' },
-    config: { taxRate: 0.16 },
+    config: { taxRate: ENV_TAX_RATE },
     items: [{ qty: 1, description: '', unitPrice: 0, applyTax: true }],
     notes: '',
-  })
+  }
+}
 
-  // Cargar el logo por defecto
-  if (!state.header.logoDataUrl) {
-    fetch('/logo sg 2.png')
+// ------------------ store ------------------
+export function useQuoteStore() {
+  const state = reactive<QuoteState>(buildDefaultState())
+
+  // Cargar el logo por defecto desde variable de entorno
+  function loadDefaultLogo(force = false) {
+    if (!force && state.header.logoDataUrl) return
+    fetch(ENV_BUSINESS_LOGO)
       .then(res => res.blob())
       .then(blob => {
         const reader = new FileReader()
         reader.onload = () => {
-          // Solo asignamos si no ha sido cambiado
-          if (!state.header.logoDataUrl) {
+          if (force || !state.header.logoDataUrl) {
             state.header.logoDataUrl = reader.result as string
           }
         }
@@ -91,6 +109,7 @@ export function useQuoteStore() {
       })
       .catch(err => console.warn('No se pudo cargar el logo por defecto', err))
   }
+  loadDefaultLogo()
 
   // Folio automático SERIE-YYYYMMDD-#### (contador diario en LocalStorage)
   function generateFolio(): void {
@@ -136,38 +155,9 @@ export function useQuoteStore() {
     }
   }
   function resetAll(): void {
-    Object.assign(state, {
-      header: {
-        series: 'SG',
-        date: todayISO(),
-        folio: '',
-        company: {
-          name: 'SG Designs',
-          rfc: 'SEGK0106071D1',
-          email: '',
-          phone: '(697) 104 2067',
-          address: 'Av. Ignacio Rayón #79, Col. Centro,\nPericos, Mocorito, Sinaloa.',
-        },
-        logoDataUrl: '',
-      },
-      client: { name: '', address: '' },
-      config: { taxRate: 0.16 },
-      items: [{ qty: 1, description: '', unitPrice: 0, applyTax: true }],
-      notes: '',
-    } as QuoteState)
+    Object.assign(state, buildDefaultState())
     generateFolio()
-    
-    // Recargar el logo por defecto al resetear
-    fetch('/logo sg 2.png')
-      .then(res => res.blob())
-      .then(blob => {
-        const reader = new FileReader()
-        reader.onload = () => {
-          state.header.logoDataUrl = reader.result as string
-        }
-        reader.readAsDataURL(blob)
-      })
-      .catch(err => console.warn('No se pudo cargar el logo por defecto al resetear', err))
+    loadDefaultLogo(true)
   }
 
   function exportJSON(): void {

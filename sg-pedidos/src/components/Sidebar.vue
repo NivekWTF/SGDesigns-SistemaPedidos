@@ -33,13 +33,13 @@
           </div>
         </template>
         <template v-else>
-          <span class="font-display text-lg font-bold tracking-wide">SG Designs</span>
+          <span class="font-display text-lg font-bold tracking-wide">{{ businessName }}</span>
         </template>
       </div>
       <div v-if="effectiveCollapsed && !mobileOpen" class="brand-collapsed">
         <button class="menu-btn-collapsed" @click.stop="toggleMenu">
           <img v-if="user?.user_metadata?.avatar_url" :src="user.user_metadata.avatar_url" class="avatar" />
-          <span v-else>SG</span>
+          <span v-else>{{ businessInitials }}</span>
         </button>
       </div>
     </div>
@@ -94,6 +94,11 @@
         <span class="icon"><BarChart3 class="h-[18px] w-[18px]" /></span>
         <span v-show="!effectiveCollapsed || mobileOpen" class="label">Ventas Producto</span>
       </router-link>
+
+      <router-link v-if="isAdmin" to="/configuracion" class="nav-item" :title="effectiveCollapsed && !mobileOpen ? 'Configuración' : ''" @click="closeMobile">
+        <span class="icon"><Settings class="h-[18px] w-[18px]" /></span>
+        <span v-show="!effectiveCollapsed || mobileOpen" class="label">Configuración</span>
+      </router-link>
     </nav>
 
     <div class="spacer" />
@@ -115,7 +120,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useAuth } from '../composables/useAuth'
-import { LayoutDashboard, Package, Shield, Users, ShoppingCart, Wallet, BarChart3, Banknote, ChevronLeft, ChevronRight, X, Sun, Moon, FileText, QrCode } from 'lucide-vue-next'
+import { useBusinessConfig } from '../composables/useBusinessConfig'
+import { LayoutDashboard, Package, Shield, Users, ShoppingCart, Wallet, BarChart3, Banknote, ChevronLeft, ChevronRight, X, Sun, Moon, FileText, QrCode, Settings } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 
 const props = defineProps<{
@@ -128,6 +134,7 @@ const emit = defineEmits<{
 
 const router = useRouter()
 const { user, profile, role, isAdmin, signOut } = useAuth()
+const { businessName, businessInitials } = useBusinessConfig()
 
 const STORAGE_KEY = 'sidebar-collapsed'
 const collapsed = ref<boolean>(localStorage.getItem(STORAGE_KEY) === '1')
@@ -222,7 +229,7 @@ applyTheme()
 .label{font-weight:600;transition:opacity .18s ease, transform .18s ease}
 .label[style*="display: none"]{opacity:0}
 .brand{display:flex;align-items:center;gap:10px;padding:8px 6px}
-.logo-btn{width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:white;display:flex;align-items:center;justify-content:center;border:none;padding:0;box-shadow:0 2px 8px rgba(14,165,233,.3)}
+.logo-btn{width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,var(--brand-primary,#0ea5e9),var(--brand-primary-dark,#0284c7));color:white;display:flex;align-items:center;justify-content:center;border:none;padding:0;box-shadow:0 2px 8px var(--brand-primary-20,rgba(14,165,233,.3))}
 .logo-btn svg{display:block}
 .brand-text{font-weight:700;color:#0f172a}
 :is(.dark) .brand-text{color:#e2e8f0}
@@ -231,8 +238,8 @@ applyTheme()
 :is(.dark) .nav-item{color:#cbd5e1}
 .nav-item:hover{background:#f1f5f9}
 :is(.dark) .nav-item:hover{background:#1e293b}
-.nav-item.router-link-active{background:linear-gradient(135deg,#eff6ff,#dbeafe);color:#0284c7;font-weight:700;border-left:3px solid #0284c7}
-:is(.dark) .nav-item.router-link-active{background:linear-gradient(135deg,#0c2d5b,#0e3a6e);color:#38bdf8;border-left-color:#38bdf8}
+.nav-item.router-link-active{background:linear-gradient(135deg,#eff6ff,#dbeafe);color:var(--brand-primary-dark,#0284c7);font-weight:700;border-left:3px solid var(--brand-primary-dark,#0284c7)}
+:is(.dark) .nav-item.router-link-active{background:linear-gradient(135deg,#0c2d5b,#0e3a6e);color:var(--brand-accent,#38bdf8);border-left-color:var(--brand-accent,#38bdf8)}
 .icon{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;font-size:16px}
 .label{font-family:'Montserrat',sans-serif;font-weight:600}
 .spacer{flex:1}

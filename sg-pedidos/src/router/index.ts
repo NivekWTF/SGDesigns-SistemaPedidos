@@ -12,6 +12,7 @@ import LoginView from '../components/LoginView.vue'
 import LabelCanvas from '../components/LabelCanvas.vue'
 import CotizadorView from '../components/CotizadorView.vue'
 import QRGeneratorView from '../components/QRGeneratorView.vue'
+import SettingsView from '../components/SettingsView.vue'
 import { getDefaultRouteForRole, useAuth } from '../composables/useAuth'
 import type { AppRole } from '../types'
 
@@ -30,6 +31,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/labels', name: 'Labels', component: LabelCanvas, meta: { title: 'Etiquetas', allowedRoles: adminOnly } },
   { path: '/cotizador', name: 'Cotizador', component: CotizadorView, meta: { title: 'Cotizador', allowedRoles: adminAndEmployee } },
   { path: '/qr', name: 'QRGenerator', component: QRGeneratorView, meta: { title: 'Generador QR', allowedRoles: adminAndEmployee } },
+  { path: '/configuracion', name: 'Configuracion', component: SettingsView, meta: { title: 'Configuración', allowedRoles: adminOnly } },
   { path: '/login', name: 'Login', component: LoginView, meta: { title: 'Iniciar sesión', public: true } }
 ]
 

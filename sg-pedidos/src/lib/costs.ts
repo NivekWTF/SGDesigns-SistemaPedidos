@@ -1,22 +1,51 @@
+/**
+ * Material cost and consumption rules.
+ *
+ * These functions define how product sales map to raw material consumption.
+ * For multi-tenant use, consider moving these rules to a `material_rules`
+ * database table so each business can configure them from the admin panel.
+ */
+
+// --------------- Product cost mapping ---------------
+
+export interface ProductCostEntry {
+  /** substring pattern to match the product name (case-insensitive) */
+  pattern: string
+  /** cost when adding stock */
+  compra: number
+  /** cost when consumed in an order */
+  consumo: number
+}
+
+/**
+ * Default cost mapping.
+ * In a multi-tenant setup, this should come from a `product_costs` DB table.
+ */
+const COST_ENTRIES: ProductCostEntry[] = [
+  { pattern: 'tabloide couche', compra: 2, consumo: 5 },
+  // Add more entries as needed per business
+]
+
 export function getCostsForProduct(nombre: string | undefined | null) {
   const name = (nombre || '').toLowerCase()
-  // Default zero costs
   let compra = 0
   let consumo = 0
 
-  // Example mapping: tabloide couche
-  if (name.includes('tabloide') && name.includes('couche')) {
-    compra = 2 // cost when adding stock
-    consumo = 5 // cost when consumed in an order
+  for (const entry of COST_ENTRIES) {
+    const parts = entry.pattern.toLowerCase().split(/\s+/)
+    if (parts.every(p => name.includes(p))) {
+      compra = entry.compra
+      consumo = entry.consumo
+      break
+    }
   }
-
-  // Add other product-specific rules here
 
   return { compra, consumo }
 }
 
+// --------------- Material consumption rules ---------------
+
 /**
- * Material consumption rules.
  * When selling a product, it may consume raw materials from inventory.
  *
  * - materialPattern: substring to match the raw material product name (case-insensitive)
@@ -28,23 +57,42 @@ export interface MaterialRule {
   unitsPerMaterial: number
 }
 
+export interface MaterialRuleEntry {
+  /** substring pattern to match the sold product name (case-insensitive) */
+  productPattern: string
+  rules: MaterialRule[]
+}
+
+/**
+ * Default material consumption rules.
+ * In a multi-tenant setup, this should come from a `material_rules` DB table.
+ *
+ * Example: selling "Sobreplato" consumes "Tabloide Couche Grueso" at a rate of 2:1.
+ */
+const MATERIAL_RULE_ENTRIES: MaterialRuleEntry[] = [
+  {
+    productPattern: 'sobreplato',
+    rules: [{ materialPattern: 'tabloide couche grueso', unitsPerMaterial: 2 }],
+  },
+  {
+    productPattern: 'sticker',
+    rules: [{ materialPattern: 'tabloide etiqueta', unitsPerMaterial: 4 }],
+  },
+  {
+    productPattern: 'tarjeta presentaci',
+    rules: [{ materialPattern: 'tabloide couche grueso', unitsPerMaterial: 25 }],
+  },
+  // Add more entries as needed per business
+]
+
 export function getMaterialRules(productName: string): MaterialRule[] {
   const name = (productName || '').toLowerCase()
 
-  // Sobreplato: 1-2 sobreplatos consumen 1 Tabloide Couche grueso
-  if (name.includes('sobreplato')) {
-    return [{ materialPattern: 'tabloide couche grueso', unitsPerMaterial: 2 }]
-  }
-
-  // Cartera de Stickers: 1-4 stickers consumen 1 Tabloide de etiqueta
-  if (name.includes('sticker') || (name.includes('cartera') && name.includes('sticker'))) {
-    return [{ materialPattern: 'tabloide etiqueta', unitsPerMaterial: 4 }]
-  }
-
-  // Tarjetas de presentación: 100 tarjetas consumen 4 Tabloides Couche grueso
-  // → 1 tabloide = 25 tarjetas
-  if (name.includes('tarjeta') && name.includes('presentaci')) {
-    return [{ materialPattern: 'tabloide couche grueso', unitsPerMaterial: 25 }]
+  for (const entry of MATERIAL_RULE_ENTRIES) {
+    const parts = entry.productPattern.toLowerCase().split(/\s+/)
+    if (parts.every(p => name.includes(p))) {
+      return entry.rules
+    }
   }
 
   return []

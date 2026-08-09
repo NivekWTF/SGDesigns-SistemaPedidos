@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PrintFlow — Sistema de Gestión para Imprentas</title>
+  <meta name="description" content="Administra pedidos, clientes, caja y cotizaciones desde una sola plataforma. Ideal para imprentas y negocios de diseño gráfico." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --c-primary: #0ea5e9;
+      --c-primary-dark: #0369a1;
+      --c-accent: #38bdf8;
+      --c-bg: #f8fafc;
+      --c-surface: #ffffff;
+      --c-text: #0f172a;
+      --c-muted: #64748b;
+      --c-border: #e2e8f0;
+      --radius: 16px;
+    }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--c-bg);
+      color: var(--c-text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--c-primary); text-decoration: none; }
+
+    /* ===== NAVBAR ===== */
+    .nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(255,255,255,.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--c-border);
+      transition: box-shadow .3s;
+    }
+    .nav.scrolled { box-shadow: 0 4px 20px rgba(0,0,0,.06); }
+    .nav-inner {
+      max-width: 1200px; margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 24px;
+    }
+    .nav-brand {
+      font-weight: 900; font-size: 22px;
+      background: linear-gradient(135deg, var(--c-primary), var(--c-primary-dark));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .nav-links { display: flex; gap: 28px; align-items: center; }
+    .nav-links a { color: var(--c-muted); font-weight: 600; font-size: 14px; transition: color .2s; }
+    .nav-links a:hover { color: var(--c-text); }
+
+    /* ===== HERO ===== */
+    .hero {
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      padding: 120px 24px 80px;
+      position: relative; overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute; top: -50%; right: -20%; width: 800px; height: 800px;
+      background: radial-gradient(circle, var(--c-accent) 0%, transparent 70%);
+      opacity: .12;
+      pointer-events: none;
+    }
+    .hero::after {
+      content: '';
+      position: absolute; bottom: -30%; left: -10%; width: 600px; height: 600px;
+      background: radial-gradient(circle, var(--c-primary) 0%, transparent 70%);
+      opacity: .08;
+      pointer-events: none;
+    }
+    .hero-inner {
+      max-width: 900px; text-align: center; position: relative; z-index: 1;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 16px; border-radius: 999px;
+      background: linear-gradient(135deg, #eff6ff, #dbeafe);
+      color: var(--c-primary-dark);
+      font-size: 13px; font-weight: 700;
+      margin-bottom: 24px;
+      border: 1px solid #bfdbfe;
+    }
+    .hero h1 {
+      font-size: clamp(36px, 6vw, 64px);
+      font-weight: 900;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      margin-bottom: 20px;
+    }
+    .hero h1 .gradient-text {
+      background: linear-gradient(135deg, var(--c-primary), var(--c-primary-dark));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero p {
+      font-size: 18px; color: var(--c-muted);
+      max-width: 600px; margin: 0 auto 36px;
+      line-height: 1.7;
+    }
+    .hero-actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 14px 32px; border-radius: 12px;
+      font-weight: 700; font-size: 15px;
+      cursor: pointer; border: none;
+      transition: all .2s;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--c-primary), var(--c-primary-dark));
+      color: #fff;
+      box-shadow: 0 6px 24px rgba(14,165,233,.25);
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 32px rgba(14,165,233,.35); }
+    .btn-outline {
+      background: #fff; color: var(--c-text);
+      border: 2px solid var(--c-border);
+    }
+    .btn-outline:hover { border-color: var(--c-primary); color: var(--c-primary); }
+
+    /* ===== FEATURES ===== */
+    .section {
+      padding: 80px 24px;
+      max-width: 1200px; margin: 0 auto;
+    }
+    .section-header {
+      text-align: center; margin-bottom: 56px;
+    }
+    .section-header h2 {
+      font-size: 36px; font-weight: 900;
+      letter-spacing: -0.01em;
+      margin-bottom: 12px;
+    }
+    .section-header p {
+      font-size: 17px; color: var(--c-muted);
+      max-width: 520px; margin: 0 auto;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+    }
+    .feature-card {
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-radius: var(--radius);
+      padding: 32px;
+      transition: all .25s;
+      position: relative;
+      overflow: hidden;
+    }
+    .feature-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 40px rgba(0,0,0,.06);
+      border-color: var(--c-accent);
+    }
+    .feature-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, var(--c-primary), var(--c-accent));
+      opacity: 0;
+      transition: opacity .25s;
+    }
+    .feature-card:hover::before { opacity: 1; }
+    .feature-icon {
+      width: 48px; height: 48px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #eff6ff, #dbeafe);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px;
+      margin-bottom: 16px;
+    }
+    .feature-card h3 {
+      font-size: 18px; font-weight: 800;
+      margin-bottom: 8px;
+    }
+    .feature-card p {
+      color: var(--c-muted); font-size: 14px;
+      line-height: 1.6;
+    }
+
+    /* ===== PRICING ===== */
+    .pricing-section { background: #f1f5f9; }
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 24px;
+      max-width: 900px; margin: 0 auto;
+    }
+    .pricing-card {
+      background: var(--c-surface);
+      border: 2px solid var(--c-border);
+      border-radius: var(--radius);
+      padding: 40px 32px;
+      text-align: center;
+      transition: all .25s;
+      position: relative;
+    }
+    .pricing-card.featured {
+      border-color: var(--c-primary);
+      box-shadow: 0 8px 32px rgba(14,165,233,.15);
+      transform: scale(1.03);
+    }
+    .pricing-card.featured .pricing-badge {
+      position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
+      padding: 4px 18px; border-radius: 999px;
+      background: linear-gradient(135deg, var(--c-primary), var(--c-primary-dark));
+      color: #fff; font-size: 12px; font-weight: 800;
+      white-space: nowrap;
+    }
+    .pricing-card h3 { font-size: 20px; font-weight: 800; margin-bottom: 8px; }
+    .pricing-price {
+      font-size: 42px; font-weight: 900;
+      color: var(--c-primary);
+      margin: 16px 0 4px;
+    }
+    .pricing-price span { font-size: 16px; color: var(--c-muted); font-weight: 600; }
+    .pricing-desc { color: var(--c-muted); font-size: 14px; margin-bottom: 24px; }
+    .pricing-features {
+      list-style: none; text-align: left;
+      margin-bottom: 28px;
+    }
+    .pricing-features li {
+      padding: 8px 0;
+      font-size: 14px; font-weight: 500;
+      border-bottom: 1px solid #f1f5f9;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .pricing-features li::before {
+      content: '✓'; color: var(--c-primary);
+      font-weight: 800;
+    }
+
+    /* ===== CTA ===== */
+    .cta {
+      text-align: center;
+      padding: 100px 24px;
+      background: linear-gradient(135deg, var(--c-primary-dark), var(--c-primary));
+      color: #fff;
+    }
+    .cta h2 { font-size: 36px; font-weight: 900; margin-bottom: 16px; }
+    .cta p { font-size: 18px; opacity: .85; margin-bottom: 32px; max-width: 500px; margin-left: auto; margin-right: auto; }
+    .cta .btn-white {
+      background: #fff; color: var(--c-primary-dark);
+      padding: 16px 40px; border-radius: 12px;
+      font-weight: 800; font-size: 16px;
+      border: none; cursor: pointer;
+      box-shadow: 0 6px 24px rgba(0,0,0,.15);
+      transition: all .2s;
+    }
+    .cta .btn-white:hover { transform: translateY(-2px); box-shadow: 0 10px 32px rgba(0,0,0,.2); }
+
+    /* ===== FOOTER ===== */
+    .footer {
+      text-align: center;
+      padding: 32px 24px;
+      color: var(--c-muted);
+      font-size: 14px;
+      border-top: 1px solid var(--c-border);
+    }
+
+    /* ===== ANIMATIONS ===== */
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-in {
+      animation: fadeInUp .6s ease both;
+    }
+    .delay-1 { animation-delay: .1s; }
+    .delay-2 { animation-delay: .2s; }
+    .delay-3 { animation-delay: .3s; }
+
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .hero h1 { font-size: 32px; }
+      .pricing-card.featured { transform: none; }
+      .features-grid, .pricing-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav class="nav" id="navbar">
+  <div class="nav-inner">
+    <a href="#" class="nav-brand">🖨️ PrintFlow</a>
+    <div class="nav-links">
+      <a href="#features">Características</a>
+      <a href="#pricing">Precios</a>
+      <a href="#contact">Contacto</a>
+      <a href="#contact" class="btn btn-primary" style="padding:10px 22px;font-size:13px;">Solicitar demo</a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-inner animate-in">
+    <div class="hero-badge">
+      ✨ Nuevo — Ahora con cotizador PDF y generador QR
+    </div>
+    <h1>
+      Tu imprenta<br />
+      <span class="gradient-text">bajo control total</span>
+    </h1>
+    <p>
+      Administra pedidos, clientes, caja, productos y cotizaciones desde una sola plataforma. 
+      Diseñado específicamente para imprentas y negocios de diseño gráfico.
+    </p>
+    <div class="hero-actions">
+      <a href="#contact" class="btn btn-primary">Empezar ahora →</a>
+      <a href="#features" class="btn btn-outline">Ver características</a>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="section" id="features">
+  <div class="section-header animate-in">
+    <h2>Todo lo que tu imprenta necesita</h2>
+    <p>Desde el primer pedido hasta el último ticket, todo en un solo lugar.</p>
+  </div>
+
+  <div class="features-grid">
+    <div class="feature-card animate-in delay-1">
+      <div class="feature-icon">📦</div>
+      <h3>Gestión de Pedidos</h3>
+      <p>Flujo completo: Pendiente → En Producción → Terminado → Entregado. Tickets térmicos automáticos al completar.</p>
+    </div>
+    <div class="feature-card animate-in delay-2">
+      <div class="feature-icon">💰</div>
+      <h3>Control de Caja</h3>
+      <p>Registra anticipos, abonos, gastos y retiros. Saldo en tiempo real con historial de movimientos.</p>
+    </div>
+    <div class="feature-card animate-in delay-3">
+      <div class="feature-icon">🧾</div>
+      <h3>Cotizador PDF</h3>
+      <p>Genera cotizaciones profesionales con tu logo, RFC y datos. Exporta a PDF en segundos.</p>
+    </div>
+    <div class="feature-card animate-in delay-1">
+      <div class="feature-icon">📊</div>
+      <h3>Reportes y Gráficas</h3>
+      <p>Dashboard con ingresos vs gastos, ventas por producto, tendencias mensuales y rentabilidad.</p>
+    </div>
+    <div class="feature-card animate-in delay-2">
+      <div class="feature-icon">👥</div>
+      <h3>Multi-usuario con Roles</h3>
+      <p>Dueño (admin) y empleados con accesos diferenciados. Tú decides quién ve qué.</p>
+    </div>
+    <div class="feature-card animate-in delay-3">
+      <div class="feature-icon">📱</div>
+      <h3>Acceso desde Cualquier Dispositivo</h3>
+      <p>Funciona en celular, tablet y computadora. Revisa tus pedidos desde donde estés.</p>
+    </div>
+    <div class="feature-card animate-in delay-1">
+      <div class="feature-icon">🏷️</div>
+      <h3>Control de Stock</h3>
+      <p>Inventario de materiales con descuento automático al crear pedidos. Nunca te quedes sin material.</p>
+    </div>
+    <div class="feature-card animate-in delay-2">
+      <div class="feature-icon">🎨</div>
+      <h3>Tu Marca, Tu Sistema</h3>
+      <p>Personaliza colores, logo, nombre y datos del negocio. El sistema lleva la identidad de TU imprenta.</p>
+    </div>
+    <div class="feature-card animate-in delay-3">
+      <div class="feature-icon">🔒</div>
+      <h3>Seguridad Empresarial</h3>
+      <p>Datos encriptados, autenticación segura y permisos por rol. Tu información está protegida.</p>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section class="pricing-section" id="pricing">
+  <div class="section" style="padding-top:80px;padding-bottom:80px;">
+    <div class="section-header animate-in">
+      <h2>Planes Simples y Transparentes</h2>
+      <p>Sin contratos a largo plazo. Cancela cuando quieras.</p>
+    </div>
+
+    <div class="pricing-grid">
+      <div class="pricing-card animate-in delay-1">
+        <h3>Básico</h3>
+        <div class="pricing-price">$500 <span>/mes</span></div>
+        <p class="pricing-desc">Setup inicial: $3,000</p>
+        <ul class="pricing-features">
+          <li>Pedidos ilimitados</li>
+          <li>Hasta 3 usuarios</li>
+          <li>Cotizador PDF</li>
+          <li>Tickets térmicos</li>
+          <li>Control de caja</li>
+          <li>Soporte por WhatsApp</li>
+        </ul>
+        <a href="#contact" class="btn btn-outline" style="width:100%;justify-content:center;">Elegir Básico</a>
+      </div>
+
+      <div class="pricing-card featured animate-in delay-2">
+        <div class="pricing-badge">⭐ Más Popular</div>
+        <h3>Profesional</h3>
+        <div class="pricing-price">$800 <span>/mes</span></div>
+        <p class="pricing-desc">Setup inicial: $3,000</p>
+        <ul class="pricing-features">
+          <li>Todo lo del plan Básico</li>
+          <li>Usuarios ilimitados</li>
+          <li>Reportes avanzados</li>
+          <li>Control de stock</li>
+          <li>Personalización de colores</li>
+          <li>Soporte prioritario</li>
+        </ul>
+        <a href="#contact" class="btn btn-primary" style="width:100%;justify-content:center;">Elegir Profesional</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta" id="contact">
+  <h2 class="animate-in">¿Listo para modernizar tu imprenta?</h2>
+  <p class="animate-in delay-1">Agenda una demo gratuita y ve el sistema en acción.</p>
+  <a href="https://wa.me/526971042067?text=Hola%2C%20me%20interesa%20el%20sistema%20de%20pedidos%20para%20mi%20imprenta" target="_blank" class="btn-white animate-in delay-2">
+    💬 Contáctanos por WhatsApp
+  </a>
+</section>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <p>© 2026 PrintFlow — Sistema de Gestión para Imprentas. Todos los derechos reservados.</p>
+</footer>
+
+<script>
+  // Navbar scroll effect
+  const nav = document.getElementById('navbar');
+  window.addEventListener('scroll', () => {
+    nav.classList.toggle('scrolled', window.scrollY > 20);
+  });
+
+  // Intersection Observer for animations
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.style.animationPlayState = 'running';
+      }
+    });
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('.animate-in').forEach(el => {
+    el.style.animationPlayState = 'paused';
+    observer.observe(el);
+  });
+</script>
+
+</body>
+</html>
