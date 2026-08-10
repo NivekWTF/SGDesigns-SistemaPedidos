@@ -1,7 +1,7 @@
 # 🧠 Contexto del Proyecto — Sistema de Pedidos para Imprentas
 
-> Última actualización: 2026-08-09 09:46 (hora Pacífico)
-> Conversación: Se completaron las 3 fases de comercialización — white-label, scripts, panel de config, colores y landing page.
+> Última actualización: 2026-08-09 21:56 (hora Pacífico)
+> Conversación: Se agregaron/separaron los KPIs en el Dashboard Gerencial para distinguir **Cobrado Hoy** (dinero real ingresado por pagos/anticipos) de **Pedidos Hoy** (monto total de pedidos creados).
 
 ---
 
@@ -27,20 +27,22 @@ SGDesigns-SistemaPedidos/
 ├── sg-pedidos/                    # ⭐ App principal (Vue 3 + Vite)
 │   ├── src/
 │   │   ├── components/            # 21 componentes Vue
-│   │   │   ├── HomeView.vue       # Dashboard con gráficas (31KB)
+│   │   │   ├── HomeView.vue       # ⭐ ACTUALIZADO: Dashboard con 5 KPIs (Cobrado Hoy vs Pedidos Hoy)
 │   │   │   ├── PedidosView.vue    # Gestión de pedidos (45KB)
 │   │   │   ├── NewOrderWizard.vue # Wizard de nuevo pedido (52KB)
 │   │   │   ├── CajaView.vue       # Control de caja (19KB)
-│   │   │   ├── SettingsView.vue   # ⭐ NUEVO: Panel de configuración
+│   │   │   ├── SettingsView.vue   # Panel de configuración
 │   │   │   ├── Sidebar.vue        # Navegación con RBAC + branding dinámico
 │   │   │   ├── LoginView.vue      # Auth con email/Google
 │   │   │   ├── CotizadorView.vue  # Wrapper del cotizador
 │   │   │   ├── QRGeneratorView.vue # Generador QR (26KB)
+│   │   │   ├── OrderDetailsModal.vue # Modal detalles + pagos
 │   │   │   └── ...otros
 │   │   ├── composables/           # 12 composables
 │   │   │   ├── useAuth.ts         # Autenticación + RBAC
-│   │   │   ├── useBusinessConfig.ts # ⭐ NUEVO: Config del negocio (BD + env fallback)
+│   │   │   ├── useBusinessConfig.ts # Config del negocio (BD + env fallback)
 │   │   │   ├── usePedidos.ts      # CRUD pedidos + tickets térmicos (20KB)
+│   │   │   ├── useReportes.ts     # RPCs de reportes (ventas, ganancias, gastos)
 │   │   │   ├── useQuoteStore.ts   # Cotizador + PDF (white-labeled)
 │   │   │   ├── useCaja.ts         # Movimientos de caja
 │   │   │   ├── useProductos.ts    # Productos + stock
@@ -49,7 +51,7 @@ SGDesigns-SistemaPedidos/
 │   │   │   ├── supabase.ts        # Cliente Supabase
 │   │   │   ├── costs.ts           # Reglas de costos (data-driven)
 │   │   │   └── utils.ts
-│   │   ├── types/                 # 8 archivos TypeScript
+│   │   ├── types/                 # 8 archivos TypeScript (incluye pagos.ts)
 │   │   ├── router/index.ts        # 13 rutas con RBAC (incluye /configuracion)
 │   │   ├── main.ts                # Bootstrap + loadConfig()
 │   │   └── App.vue                # Shell: sidebar + topbar + router-view
@@ -57,11 +59,17 @@ SGDesigns-SistemaPedidos/
 │   ├── .env.example               # Template para nuevos clientes
 │   ├── Dockerfile                 # Multi-stage build (12 ARGs)
 │   └── docker-compose.yml         # Docker deploy (12 build args)
-├── landing/                       # ⭐ NUEVO: Landing page de venta
+├── landing/                       # Landing page de venta
 │   └── index.html                 # Página standalone de marketing
 ├── sql/                           # 16 scripts SQL
-│   ├── onboarding_complete.sql    # Script único de setup (con business_config)
-│   ├── create_business_config.sql # ⭐ NUEVO: Tabla de configuración
+│   ├── onboarding_complete.sql    # Script único de setup (~600 líneas)
+│   ├── create_business_config.sql # Tabla de configuración
+│   ├── report_sales_by_day.sql    # Actualizado: usa pagos.monto
+│   ├── report_sales_by_week.sql   # Actualizado: usa pagos.monto
+│   ├── report_sales_by_month.sql  # Actualizado: usa pagos.monto
+│   ├── report_profit_and_expenses.sql       # Actualizado: usa pagos.monto
+│   ├── report_profit_and_expenses_weekly.sql # Actualizado: usa pagos.monto
+│   ├── report_orders_by_day.sql   # Lista pedidos del día (sin cambio)
 │   └── ...otros
 ├── supabase/functions/            # Edge functions
 ├── .agents/skills/save-context/   # Skill de guardar contexto
@@ -97,13 +105,10 @@ SGDesigns-SistemaPedidos/
 - CSS variables dinámicas (`--brand-primary`, `--brand-accent`, etc.)
 - TypeScript: 0 errores
 
-### 📋 Ideas Futuras (no bloqueantes)
-
-- 🟢 Notificaciones WhatsApp cuando pedido está listo
-- 🟢 Portal público para que clientes vean status de su pedido
-- 🟢 Backup automático de BD
-- 🟢 Migrar reglas de costos de `costs.ts` a tabla BD
-- 🟢 Subir logo a Supabase Storage en vez de base64/URL
+**Fase 4 — Regla de negocio & KPIs en Dashboard:**
+- **5 RPCs SQL actualizadas**: `report_sales_by_day`, `report_sales_by_week`, `report_sales_by_month`, `report_profit_and_expenses`, `report_profit_and_expenses_weekly`.
+- **Nuevo KPI "Cobrado Hoy" en `HomeView.vue`**: Muestra `$0.00` si se crea un pedido sin anticipo/pago.
+- **KPI "Pedidos Hoy"**: Muestra el valor contratado total de pedidos creados hoy.
 
 ---
 
@@ -117,63 +122,7 @@ SGDesigns-SistemaPedidos/
 | CSS vars para colores | Se aplican en runtime sin rebuild; funciona con dark mode |
 | Reglas de costos como arrays | Más rápido que migrar a BD; futuro: tabla `material_rules` |
 | Landing page standalone HTML | No necesita framework; se puede hostear en cualquier lado |
-
----
-
-## Variables de Entorno
-
-| Variable | Obligatoria | Default |
-|----------|-------------|---------|
-| `VITE_SUPABASE_URL` | ✅ | — |
-| `VITE_SUPABASE_ANON_KEY` | ✅ | — |
-| `VITE_BUSINESS_NAME` | ❌ | "Mi Imprenta" |
-| `VITE_BUSINESS_RFC` | ❌ | "" |
-| `VITE_BUSINESS_EMAIL` | ❌ | "" |
-| `VITE_BUSINESS_ADDRESS` | ❌ | "" |
-| `VITE_BUSINESS_PHONE` | ❌ | "" |
-| `VITE_BUSINESS_LOGO_URL` | ❌ | "/logo.png" |
-| `VITE_BUSINESS_SOCIALS` | ❌ | "" |
-| `VITE_BUSINESS_SERIES` | ❌ | "COT" |
-| `VITE_BUSINESS_TAX_RATE` | ❌ | "0.16" |
-
-**Nota:** Estas son solo los defaults iniciales. Una vez que el admin guarda desde Configuración, los valores de BD prevalecen.
-
----
-
-## Tabla `business_config` (BD)
-
-| Columna | Tipo | Default |
-|---------|------|---------|
-| `business_name` | text | NULL |
-| `business_rfc` | text | NULL |
-| `business_email` | text | NULL |
-| `business_address` | text | NULL |
-| `business_phone` | text | NULL |
-| `business_logo_url` | text | NULL |
-| `business_socials` | text | NULL |
-| `business_series` | text | 'COT' |
-| `tax_rate` | numeric(5,4) | 0.16 |
-| `color_primary` | text | '#0ea5e9' |
-| `color_primary_dark` | text | '#0284c7' |
-| `color_accent` | text | '#38bdf8' |
-
----
-
-## Archivos Clave
-
-| Archivo | Qué hace |
-|---------|----------|
-| `composables/useBusinessConfig.ts` | Config reactiva: BD → env fallback → CSS vars |
-| `composables/usePedidos.ts` | CRUD pedidos + tickets térmicos + RPC stock |
-| `composables/useQuoteStore.ts` | Cotizador + PDF (white-labeled) |
-| `composables/useAuth.ts` | Auth con roles admin/empleado |
-| `components/SettingsView.vue` | Panel de configuración completo |
-| `components/NewOrderWizard.vue` | Wizard multi-step para pedidos (52KB) |
-| `components/PedidosView.vue` | Vista principal de pedidos (45KB) |
-| `router/index.ts` | 13 rutas con RBAC guard |
-| `lib/costs.ts` | Reglas de costos data-driven |
-| `sql/onboarding_complete.sql` | Script único de setup (~600 líneas) |
-| `landing/index.html` | Landing page de venta |
+| **Separación de Cobrado vs Pedidos** | "Cobrado Hoy" mide el flujo real de dinero ingresado (pagos/anticipos). "Pedidos Hoy" mide el monto contratado generado hoy. |
 
 ---
 
@@ -184,14 +133,7 @@ SGDesigns-SistemaPedidos/
    - Ejecutar `sql/onboarding_complete.sql` en SQL Editor
    - Copiar `.env.example` → `.env.local` y llenar Supabase URL + key
    - `npm install && npm run dev` o deploy con Docker
-   - Primer usuario registrado = admin automáticamente
-   - El admin configura todo desde ⚙️ Configuración
 
-2. **Para la landing page:**
-   - Abrir `landing/index.html` en un navegador
-   - Personalizar precios, textos y WhatsApp link
-   - Hostear en cualquier servidor estático (Netlify, GitHub Pages, etc.)
-
-3. **Si hay bugs:**
+2. **Si hay bugs:**
    - `npx vue-tsc --noEmit` para verificar tipos
    - El proyecto compila limpio a la fecha (2026-08-09)

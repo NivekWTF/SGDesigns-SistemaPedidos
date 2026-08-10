@@ -430,7 +430,7 @@ END $$;
 -- 7. REPORT FUNCTIONS
 -- =====================
 
--- Sales by day
+-- Sales by day (based on PAYMENTS RECEIVED, not order totals)
 CREATE OR REPLACE FUNCTION public.report_sales_by_day(days integer DEFAULT 30, tz text DEFAULT 'America/Mazatlan')
 RETURNS TABLE(period text, total numeric) LANGUAGE plpgsql AS $$
 BEGIN
@@ -443,8 +443,8 @@ BEGIN
       interval '1 day'
     )::date AS d
   ), daily_sales AS (
-    SELECT (timezone(tz, created_at))::date AS d, SUM(p.total) AS total
-    FROM pedidos p GROUP BY 1
+    SELECT (timezone(tz, pg.creado_en))::date AS d, SUM(pg.monto) AS total
+    FROM pagos pg GROUP BY 1
   )
   SELECT to_char(dr.d, 'YYYY-MM-DD') AS period, COALESCE(ds.total, 0)::numeric AS total
   FROM date_range dr LEFT JOIN daily_sales ds ON ds.d = dr.d ORDER BY dr.d;
@@ -454,7 +454,7 @@ $$;
 REVOKE ALL ON FUNCTION public.report_sales_by_day(integer, text) FROM public;
 GRANT EXECUTE ON FUNCTION public.report_sales_by_day(integer, text) TO authenticated;
 
--- Profit and expenses (monthly)
+-- Profit and expenses (monthly, based on PAYMENTS RECEIVED)
 CREATE OR REPLACE FUNCTION public.report_profit_and_expenses(periods integer DEFAULT 12, tz text DEFAULT 'America/Mazatlan')
 RETURNS TABLE(period text, ingresos numeric, gastos numeric, profit numeric) LANGUAGE plpgsql AS $$
 BEGIN
@@ -467,7 +467,7 @@ BEGIN
         date_trunc('month', timezone(tz, now())), interval '1 month'
       ) AS d
     ), sales AS (
-      SELECT date_trunc('month', timezone(tz, created_at)) AS m, sum(total) AS ingresos FROM pedidos GROUP BY m
+      SELECT date_trunc('month', timezone(tz, creado_en)) AS m, sum(monto) AS ingresos FROM pagos GROUP BY m
     )
     SELECT to_char(m.d::date, 'YYYY-MM'), coalesce(s.ingresos,0)::numeric, 0::numeric, coalesce(s.ingresos,0)::numeric
     FROM months m LEFT JOIN sales s ON s.m = m.d ORDER BY m.d DESC;
@@ -479,7 +479,7 @@ BEGIN
         date_trunc('month', timezone(tz, now())), interval '1 month'
       ) AS d
     ), sales AS (
-      SELECT date_trunc('month', timezone(tz, created_at)) AS m, sum(total) AS ingresos FROM pedidos GROUP BY m
+      SELECT date_trunc('month', timezone(tz, creado_en)) AS m, sum(monto) AS ingresos FROM pagos GROUP BY m
     ), expenses AS (
       SELECT date_trunc('month', timezone(tz, created_at)) AS m, sum(monto) AS gastos FROM gastos GROUP BY m
     )

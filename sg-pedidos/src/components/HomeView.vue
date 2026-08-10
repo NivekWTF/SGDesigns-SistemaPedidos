@@ -16,53 +16,87 @@
 
         <!-- ROW 1: Hero KPI cards -->
         <template v-if="loading">
-          <SkeletonLoader variant="kpi" :count="4" />
+          <SkeletonLoader variant="kpi" :count="5" />
         </template>
-        <section v-else class="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-4">
-          <!-- Ventas Hoy -->
+        <section v-else class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          <!-- Cobrado Hoy -->
           <div
-            class="min-w-0 overflow-hidden rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-emerald-100/70 p-8 shadow-[0_8px_24px_rgba(15,23,42,0.06)] dark:border-emerald-500/20 dark:bg-gradient-to-br dark:from-[#0d3320] dark:to-[#052e16] dark:shadow-[0_10px_30px_rgba(0,0,0,0.22)]"
+            class="min-w-0 overflow-hidden rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-emerald-100/70 p-7 shadow-[0_8px_24px_rgba(15,23,42,0.06)] dark:border-emerald-500/20 dark:bg-gradient-to-br dark:from-[#0d3320] dark:to-[#052e16] dark:shadow-[0_10px_30px_rgba(0,0,0,0.22)]"
           >
-            <div class="flex items-start justify-between gap-4">
+            <div class="flex items-start justify-between gap-3">
               <div class="min-w-0 flex-1">
                 <p class="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-400/80">
-                  Ventas Hoy
+                  Cobrado Hoy
                 </p>
-                <p class="mt-3 text-4xl font-black tracking-tight text-slate-900 dark:text-white">
-                  {{ formatCurrency(dayTotal) }}
+                <p class="mt-2 text-3xl font-black tracking-tight text-slate-900 dark:text-white">
+                  {{ formatCurrency(dayPaymentsTotal) }}
                 </p>
                 <div class="mt-3 flex items-center gap-2">
                   <span
                     class="inline-block h-2 w-2 rounded-full"
-                    :class="dayTotal > 0 ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-slate-400 dark:bg-slate-500'"
+                    :class="dayPaymentsTotal > 0 ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-slate-400 dark:bg-slate-500'"
                   ></span>
                   <span
                     class="text-xs font-semibold"
-                    :class="dayTotal > 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'"
+                    :class="dayPaymentsTotal > 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'"
                   >
-                    {{ dayRows.length }} pedido{{ dayRows.length !== 1 ? 's' : '' }} hoy
+                    Pagos y anticipos de hoy
                   </span>
                 </div>
               </div>
 
               <div
-                class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-emerald-200 bg-white/80 dark:border-emerald-400/10 dark:bg-emerald-500/15"
+                class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-200 bg-white/80 dark:border-emerald-400/10 dark:bg-emerald-500/15"
               >
-                <DollarSign class="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
+                <DollarSign class="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Pedidos Hoy -->
+          <div
+            class="min-w-0 overflow-hidden rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 to-amber-100/70 p-7 shadow-[0_8px_24px_rgba(15,23,42,0.06)] dark:border-amber-500/20 dark:bg-gradient-to-br dark:from-[#38260a] dark:to-[#241805] dark:shadow-[0_10px_30px_rgba(0,0,0,0.22)]"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0 flex-1">
+                <p class="text-xs font-bold uppercase tracking-[0.18em] text-amber-700 dark:text-amber-400/80">
+                  Pedidos Hoy
+                </p>
+                <p class="mt-2 text-3xl font-black tracking-tight text-slate-900 dark:text-white">
+                  {{ formatCurrency(dayTotal) }}
+                </p>
+                <div class="mt-3 flex items-center gap-2">
+                  <span
+                    class="inline-block h-2 w-2 rounded-full"
+                    :class="dayTotal > 0 ? 'bg-amber-500 dark:bg-amber-400' : 'bg-slate-400 dark:bg-slate-500'"
+                  ></span>
+                  <span
+                    class="text-xs font-semibold"
+                    :class="dayTotal > 0 ? 'text-amber-700 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'"
+                  >
+                    {{ dayRows.length }} pedido{{ dayRows.length !== 1 ? 's' : '' }} registrado{{ dayRows.length !== 1 ? 's' : '' }}
+                  </span>
+                </div>
+              </div>
+
+              <div
+                class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-amber-200 bg-white/80 dark:border-amber-400/10 dark:bg-amber-500/15"
+              >
+                <Receipt class="h-6 w-6 text-amber-600 dark:text-amber-400" />
               </div>
             </div>
           </div>
 
           <!-- Ventas del Mes -->
           <div
-            class="min-w-0 overflow-hidden rounded-3xl border border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100/70 p-8 shadow-[0_8px_24px_rgba(15,23,42,0.06)] dark:border-blue-500/20 dark:bg-gradient-to-br dark:from-[#0c2744] dark:to-[#0a1e36] dark:shadow-[0_10px_30px_rgba(0,0,0,0.22)]"
+            class="min-w-0 overflow-hidden rounded-3xl border border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100/70 p-7 shadow-[0_8px_24px_rgba(15,23,42,0.06)] dark:border-blue-500/20 dark:bg-gradient-to-br dark:from-[#0c2744] dark:to-[#0a1e36] dark:shadow-[0_10px_30px_rgba(0,0,0,0.22)]"
           >
-            <div class="flex items-start justify-between gap-4">
+            <div class="flex items-start justify-between gap-3">
               <div class="min-w-0 flex-1">
                 <p class="text-xs font-bold uppercase tracking-[0.18em] text-blue-700 dark:text-blue-400/80">
                   Ventas del Mes
                 </p>
-                <p class="mt-3 text-4xl font-black tracking-tight text-slate-900 dark:text-white">
+                <p class="mt-2 text-3xl font-black tracking-tight text-slate-900 dark:text-white">
                   {{ formatCurrency(totalWeekly) }}
                 </p>
                 <div class="mt-3 flex items-center gap-2">
@@ -72,23 +106,23 @@
               </div>
 
               <div
-                class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-blue-200 bg-white/80 dark:border-blue-400/10 dark:bg-blue-500/15"
+                class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-blue-200 bg-white/80 dark:border-blue-400/10 dark:bg-blue-500/15"
               >
-                <CalendarDays class="h-7 w-7 text-blue-600 dark:text-blue-400" />
+                <CalendarDays class="h-6 w-6 text-blue-600 dark:text-blue-400" />
               </div>
             </div>
           </div>
 
           <!-- Ventas del Año -->
           <div
-            class="min-w-0 overflow-hidden rounded-3xl border border-cyan-200 bg-gradient-to-br from-cyan-50 to-cyan-100/70 p-8 shadow-[0_8px_24px_rgba(15,23,42,0.06)] dark:border-cyan-500/20 dark:bg-gradient-to-br dark:from-[#083344] dark:to-[#042f3e] dark:shadow-[0_10px_30px_rgba(0,0,0,0.22)]"
+            class="min-w-0 overflow-hidden rounded-3xl border border-cyan-200 bg-gradient-to-br from-cyan-50 to-cyan-100/70 p-7 shadow-[0_8px_24px_rgba(15,23,42,0.06)] dark:border-cyan-500/20 dark:bg-gradient-to-br dark:from-[#083344] dark:to-[#042f3e] dark:shadow-[0_10px_30px_rgba(0,0,0,0.22)]"
           >
-            <div class="flex items-start justify-between gap-4">
+            <div class="flex items-start justify-between gap-3">
               <div class="min-w-0 flex-1">
                 <p class="text-xs font-bold uppercase tracking-[0.18em] text-cyan-700 dark:text-cyan-400/80">
                   Ventas del Año
                 </p>
-                <p class="mt-3 text-4xl font-black tracking-tight text-slate-900 dark:text-white">
+                <p class="mt-2 text-3xl font-black tracking-tight text-slate-900 dark:text-white">
                   {{ formatCurrency(totalMonthly) }}
                 </p>
                 <div class="mt-3 flex items-center gap-2">
@@ -98,21 +132,21 @@
               </div>
 
               <div
-                class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-cyan-200 bg-white/80 dark:border-cyan-400/10 dark:bg-cyan-500/15"
+                class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-200 bg-white/80 dark:border-cyan-400/10 dark:bg-cyan-500/15"
               >
-                <BarChart3 class="h-7 w-7 text-cyan-600 dark:text-cyan-400" />
+                <BarChart3 class="h-6 w-6 text-cyan-600 dark:text-cyan-400" />
               </div>
             </div>
           </div>
 
           <!-- Ganancia Semana Actual -->
           <div
-            class="min-w-0 overflow-hidden rounded-3xl border p-8 shadow-[0_8px_24px_rgba(15,23,42,0.06)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.22)]"
+            class="min-w-0 overflow-hidden rounded-3xl border p-7 shadow-[0_8px_24px_rgba(15,23,42,0.06)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.22)]"
             :class="currentWeekProfit >= 0
               ? 'border-violet-200 bg-gradient-to-br from-violet-50 to-violet-100/70 dark:border-violet-500/20 dark:bg-gradient-to-br dark:from-[#1e0f3a] dark:to-[#150a2e]'
               : 'border-red-200 bg-gradient-to-br from-red-50 to-red-100/70 dark:border-red-500/20 dark:bg-gradient-to-br dark:from-[#3a0f0f] dark:to-[#2e0a0a]'"
           >
-            <div class="flex items-start justify-between gap-4">
+            <div class="flex items-start justify-between gap-3">
               <div class="min-w-0 flex-1">
                 <p
                   class="text-xs font-bold uppercase tracking-[0.18em]"
@@ -121,12 +155,12 @@
                   Ganancia Semana
                 </p>
                 <p
-                  class="mt-3 text-4xl font-black tracking-tight"
+                  class="mt-2 text-3xl font-black tracking-tight"
                   :class="currentWeekProfit >= 0 ? 'text-slate-900 dark:text-white' : 'text-red-600 dark:text-red-400'"
                 >
                   {{ formatCurrency(currentWeekProfit) }}
                 </p>
-                <div class="mt-3 flex flex-col gap-1">
+                <div class="mt-3 flex flex-col gap-0.5">
                   <span class="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                     Ingresos: {{ formatCurrency(currentWeekIncome) }}
                   </span>
@@ -137,13 +171,13 @@
               </div>
 
               <div
-                class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border bg-white/80"
+                class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border bg-white/80"
                 :class="currentWeekProfit >= 0
                   ? 'border-violet-200 dark:border-violet-400/10 dark:bg-violet-500/15'
                   : 'border-red-200 dark:border-red-400/10 dark:bg-red-500/15'"
               >
                 <Banknote
-                  class="h-7 w-7"
+                  class="h-6 w-6"
                   :class="currentWeekProfit >= 0 ? 'text-violet-600 dark:text-violet-400' : 'text-red-600 dark:text-red-400'"
                 />
               </div>
@@ -456,11 +490,23 @@
                 <SVGBarChart :series="dailyChartSeries" />
               </div>
 
-              <div v-if="dayRows.length">
-                <div class="mb-4 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-5 py-3.5 dark:border-amber-500/20 dark:bg-amber-500/10">
-                  <Receipt class="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                  <span class="font-display text-base font-bold text-slate-900 dark:text-white">Total del día:</span>
-                  <span class="text-xl font-black text-amber-600 dark:text-amber-400">{{ formatCurrency(dayTotal) }}</span>
+              <div v-if="dayRows.length || dayPaymentsTotal > 0">
+                <div class="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div class="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-3.5 dark:border-emerald-500/20 dark:bg-emerald-500/10">
+                    <DollarSign class="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                    <div>
+                      <span class="block text-xs font-semibold text-emerald-700 dark:text-emerald-400">Total cobrado en la fecha:</span>
+                      <span class="text-xl font-black text-emerald-700 dark:text-emerald-300">{{ formatCurrency(dayPaymentsTotal) }}</span>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-5 py-3.5 dark:border-amber-500/20 dark:bg-amber-500/10">
+                    <Receipt class="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                    <div>
+                      <span class="block text-xs font-semibold text-amber-700 dark:text-amber-400">Total en pedidos creados:</span>
+                      <span class="text-xl font-black text-amber-700 dark:text-amber-300">{{ formatCurrency(dayTotal) }}</span>
+                    </div>
+                  </div>
                 </div>
 
                 <ul class="overflow-hidden rounded-xl border border-slate-200/70 divide-y divide-slate-200/70 dark:border-white/5 dark:divide-white/5">
@@ -569,16 +615,6 @@ onMounted(load)
 const today = formatDateInTimeZone(new Date(), reportTimeZone)
 const daily = ref<Array<{ category: string; value: number }>>([])
 
-async function loadToday() {
-  const s = await ventasPorDia(today, reportTimeZone)
-  daily.value = (s || []).map((r: any) => ({
-    category: utcHourToLocal(r.period, today) + ':00',
-    value: Number(r.total || 0),
-  }))
-}
-
-onMounted(loadToday)
-
 const totalWeekly = computed(() => weekly.value.reduce((s, r) => s + (r.total || 0), 0))
 const totalMonthly = computed(() => monthly.value.reduce((s, r) => s + (r.total || 0), 0))
 const totalProfit = computed(() => profitRows.value.reduce((s, r) => s + (r.profit || 0), 0))
@@ -654,6 +690,10 @@ const selectedDate = ref<string | null>(today)
 const dayRows = ref<any[]>([])
 const dayTotal = ref<number>(0)
 
+const dayPaymentsTotal = computed(() =>
+  (daily.value || []).reduce((s, r) => s + (Number(r.value) || 0), 0)
+)
+
 async function consultarDia() {
   if (!selectedDate.value) return
 
@@ -669,11 +709,7 @@ async function consultarDia() {
   dayTotal.value = res.total || 0
 }
 
-onMounted(async () => {
-  const res = await pedidosPorDia(today, reportTimeZone)
-  dayRows.value = res.rows || []
-  dayTotal.value = res.total || 0
-})
+onMounted(consultarDia)
 
 const dailyChartSeries = computed(() => daily.value || [])
 </script>

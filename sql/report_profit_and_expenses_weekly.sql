@@ -1,3 +1,4 @@
+-- Based on PAYMENTS RECEIVED (pagos.monto), not order totals.
 create or replace function public.report_profit_and_expenses_weekly(weeks integer default 8, tz text default 'America/Mazatlan')
 returns table(period text, ingresos numeric, gastos numeric, profit numeric)
 language plpgsql
@@ -14,7 +15,7 @@ begin
         interval '1 week'
       ) as d
     ), sales as (
-      select date_trunc('week', timezone(tz, created_at)) as w, sum(total) as ingresos from pedidos group by w
+      select date_trunc('week', timezone(tz, creado_en)) as w, sum(monto) as ingresos from pagos group by w
     )
     select to_char(ws.d::date, 'IYYY-"W"IW') as period,
            coalesce(s.ingresos,0)::numeric as ingresos,
@@ -32,7 +33,7 @@ begin
         interval '1 week'
       ) as d
     ), sales as (
-      select date_trunc('week', timezone(tz, created_at)) as w, sum(total) as ingresos from pedidos group by w
+      select date_trunc('week', timezone(tz, creado_en)) as w, sum(monto) as ingresos from pagos group by w
     ), expenses as (
       select date_trunc('week', timezone(tz, created_at)) as w, sum(monto) as gastos from gastos group by w
     )

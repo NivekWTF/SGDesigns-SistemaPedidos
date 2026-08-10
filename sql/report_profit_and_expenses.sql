@@ -1,6 +1,6 @@
 /*
-Returns monthly period with ingresos (sales total), gastos (expenses) and profit (ingresos - gastos).
-Modify the expenses source as appropriate; here we assume a table `gastos` with `monto` and `created_at`.
+Returns monthly period with ingresos (payments received), gastos (expenses) and profit (ingresos - gastos).
+Based on PAYMENTS RECEIVED (pagos.monto), not order totals.
 */
 create or replace function public.report_profit_and_expenses(periods integer default 12, tz text default 'America/Mazatlan')
 returns table(period text, ingresos numeric, gastos numeric, profit numeric)
@@ -19,7 +19,7 @@ begin
         interval '1 month'
       ) as d
     ), sales as (
-      select date_trunc('month', timezone(tz, created_at)) as m, sum(total) as ingresos from pedidos group by m
+      select date_trunc('month', timezone(tz, creado_en)) as m, sum(monto) as ingresos from pagos group by m
     )
     select to_char(m.d::date, 'YYYY-MM') as period,
            coalesce(s.ingresos,0)::numeric as ingresos,
@@ -37,7 +37,7 @@ begin
         interval '1 month'
       ) as d
     ), sales as (
-      select date_trunc('month', timezone(tz, created_at)) as m, sum(total) as ingresos from pedidos group by m
+      select date_trunc('month', timezone(tz, creado_en)) as m, sum(monto) as ingresos from pagos group by m
     ), expenses as (
       select date_trunc('month', timezone(tz, created_at)) as m, sum(monto) as gastos from gastos group by m
     )
