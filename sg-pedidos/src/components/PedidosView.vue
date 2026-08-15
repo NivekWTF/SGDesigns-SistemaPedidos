@@ -709,8 +709,15 @@ async function borrar(id: string) {
     return
   }
 
-  if (!confirm('¿Seguro que quieres eliminar este pedido?')) return
-  await eliminarPedido(id)
+  if (!confirm('¿Seguro que quieres eliminar este pedido? El stock de los productos descontados se regresará al inventario.')) return
+
+  try {
+    await eliminarPedido(id)
+    await fetchProductos()
+  } catch (err) {
+    console.error('Error al eliminar el pedido:', err)
+    alert('No se pudo eliminar el pedido')
+  }
 }
 </script>
 

@@ -19,6 +19,7 @@ export interface CrearPedidoInput {
   items: PedidoItemInput[]
   anticipo?: number
   anticipo_metodo?: string
+  consumos?: Array<{ producto_id: string; cantidad: number }>
 }
 
 export interface PedidoItem {

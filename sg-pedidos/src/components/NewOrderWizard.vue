@@ -244,7 +244,7 @@
               </div>
             </div>
 
-            <div class="review-total">
+                  <div class="review-total">
               <div>Total:</div>
               <div class="total-amount">${{ total.toFixed(2) }}</div>
             </div>
@@ -252,6 +252,52 @@
             <div class="review-rest">
               <div>Restan:</div>
               <div class="rest-amount">${{ Math.max(0, total - (anticipo || 0)).toFixed(2) }}</div>
+            </div>
+
+            <!-- Material / Tabloid Consumptions Card -->
+            <div v-if="materialConsumptions.length" class="material-card">
+              <div class="material-card__header">
+                <span class="material-card__icon">🏷️</span>
+                <div>
+                  <div class="material-card__title">Consumo de Insumos y Tabloides</div>
+                  <div class="material-card__sub">Confirma o ajusta la cantidad de insumos que consumirá este pedido</div>
+                </div>
+              </div>
+              <div class="material-card__body">
+                <div v-for="(mc, mIdx) in materialConsumptions" :key="mIdx" class="material-item-row">
+                  <div class="material-item-prompt">
+                    <label class="material-item-label">
+                      ¿Cuántos <strong>{{ mc.materialProductName }}</strong> consumió este pedido?
+                    </label>
+                    <div class="material-item-hint">
+                      Base: {{ mc.productQty }}x {{ mc.productName }} ({{ mc.unitsPerMaterial }} por tabloide)
+                    </div>
+                  </div>
+                  <div class="material-item-input-wrap">
+                    <input
+                      type="number"
+                      v-model.number="mc.userQty"
+                      min="0"
+                      step="1"
+                      class="input material-qty-input"
+                    />
+                    <span class="material-item-unit">tabloides</span>
+                  </div>
+                  <div class="material-item-stock-info">
+                    <template v-if="mc.currentStock !== null">
+                      Stock actual: <strong>{{ mc.currentStock }}</strong>
+                      <span class="stock-sep">→</span>
+                      Quedará en:
+                      <span :class="['stock-result', (mc.currentStock - (mc.userQty || 0)) < 0 ? 'stock-result--negative' : 'stock-result--ok']">
+                        {{ mc.currentStock - (mc.userQty || 0) }}
+                      </span>
+                    </template>
+                    <template v-else>
+                      <span class="stock-missing">⚠️ Insumo "{{ mc.materialPattern }}" no registrado en inventario</span>
+                    </template>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div class="notes-card">
@@ -649,9 +695,75 @@ function removeItem(i:number){ items.value.splice(i,1) }
 
 const total = computed(() => items.value.reduce((acc, it) => acc + (it.cantidad * (it.precio_unitario||0)), 0))
 
+interface MaterialConsumptionItem {
+  productName: string
+  productQty: number
+  materialPattern: string
+  materialProductId: string | null
+  materialProductName: string
+  unitsPerMaterial: number
+  calculatedQty: number
+  userQty: number
+  currentStock: number | null
+}
+
+const materialConsumptions = ref<MaterialConsumptionItem[]>([])
+
+function refreshMaterialConsumptions() {
+  const currentMap = new Map<string, number>()
+  for (const mc of materialConsumptions.value) {
+    if (mc.materialPattern) {
+      currentMap.set(mc.materialPattern, mc.userQty)
+    }
+  }
+
+  const result: MaterialConsumptionItem[] = []
+  const prodMap: Record<string, any> = {}
+  for (const p of productos.value) prodMap[p.id] = p
+
+  for (const item of items.value) {
+    const prod = item.producto_id ? prodMap[item.producto_id] : null
+    const name = prod?.nombre || item.nombre || ''
+    const rules = getMaterialRules(name)
+    for (const rule of rules) {
+      const calc = Math.ceil((Number(item.cantidad) || 0) / rule.unitsPerMaterial)
+      const matProduct = productos.value.find((p: any) =>
+        (p.nombre || '').toLowerCase().includes(rule.materialPattern.toLowerCase())
+      )
+
+      const existingUserQty = currentMap.get(rule.materialPattern)
+      const userQty = typeof existingUserQty === 'number' ? existingUserQty : calc
+
+      result.push({
+        productName: name || 'Producto',
+        productQty: Number(item.cantidad) || 0,
+        materialPattern: rule.materialPattern,
+        materialProductId: matProduct?.id || null,
+        materialProductName: matProduct?.nombre || rule.materialPattern,
+        unitsPerMaterial: rule.unitsPerMaterial,
+        calculatedQty: calc,
+        userQty: userQty,
+        currentStock: typeof matProduct?.stock === 'number' ? matProduct.stock : null
+      })
+    }
+  }
+
+  materialConsumptions.value = result
+}
+
+watch(
+  [items, step],
+  () => {
+    if (step.value === 3) {
+      refreshMaterialConsumptions()
+    }
+  },
+  { deep: true, immediate: true }
+)
+
 /**
  * Validate stock availability before submitting the order.
- * Aggregates demand from items + auto-computed material consumos,
+ * Aggregates demand from items + user-confirmed material consumos,
  * then compares against current product stock.
  * Returns an array of errors (empty = all OK).
  */
@@ -674,25 +786,14 @@ function validateStock(): Array<{ nombre: string; disponible: number; requerido:
     demand[it.producto_id].total += Number(it.cantidad) || 0
   }
 
-  // 2) Accumulate demand from material consumos (same logic as crearPedido in usePedidos.ts)
-  for (const it of items.value) {
-    if (!it.producto_id) continue
-    const prod = prodMap[it.producto_id]
-    const nombre = prod?.nombre || it.nombre || ''
-    const rules = getMaterialRules(nombre)
-    for (const rule of rules) {
-      // Find the material product by pattern matching
-      const material = productos.value.find(
-        (p: any) => (p.nombre || '').toLowerCase().includes(rule.materialPattern.toLowerCase())
-      )
-      if (material) {
-        const consumed = Math.ceil((Number(it.cantidad) || 0) / rule.unitsPerMaterial)
-        if (!demand[material.id]) {
-          demand[material.id] = { nombre: material.nombre, total: 0 }
-        }
-        demand[material.id].total += consumed
-      }
+  // 2) Accumulate demand from user-confirmed material consumptions
+  for (const mc of materialConsumptions.value) {
+    if (!mc.materialProductId) continue
+    if (!demand[mc.materialProductId]) {
+      const prod = prodMap[mc.materialProductId]
+      demand[mc.materialProductId] = { nombre: prod?.nombre || mc.materialProductName, total: 0 }
     }
+    demand[mc.materialProductId].total += Number(mc.userQty) || 0
   }
 
   // 3) Compare demand against available stock
@@ -720,6 +821,7 @@ async function confirmOrder(){
   stockErrors.value = []
   // Refresh products to get latest stock levels
   await fetchProductos()
+  refreshMaterialConsumptions()
   const errors = validateStock()
   if (errors.length > 0) {
     stockErrors.value = errors
@@ -729,6 +831,10 @@ async function confirmOrder(){
   submitting.value = true
   try {
     const payloadItems = items.value.map(it=>({ producto_id: it.producto_id, cantidad: it.cantidad, precio_unitario: it.precio_unitario, descripcion_personalizada: it.descripcion || '' }))
+
+    const consumosPayload = materialConsumptions.value
+      .filter(m => m.materialProductId && (m.userQty || 0) > 0)
+      .map(m => ({ producto_id: m.materialProductId!, cantidad: Number(m.userQty) }))
 
     if (props.initialPedido && props.initialPedido.id) {
       // edit existing pedido
@@ -748,7 +854,8 @@ async function confirmOrder(){
         notas: notas.value,
         items: payloadItems,
         anticipo: anticipo.value > 0 ? anticipo.value : undefined,
-        anticipo_metodo: anticipo.value > 0 ? anticipoMetodo.value : undefined
+        anticipo_metodo: anticipo.value > 0 ? anticipoMetodo.value : undefined,
+        consumos: consumosPayload.length ? consumosPayload : undefined
       })
       // El stock ya fue descontado atómicamente por el RPC create_pedido_with_stock.
       // Refrescamos la lista local de productos para reflejar los nuevos niveles de stock.
@@ -1039,4 +1146,40 @@ function close(){ emit('close') }
 :is(.dark) .quick-stock-form__value--highlight{color:#6ee7b7;background:rgba(110,231,183,0.08)}
 :is(.dark) .quick-stock-form__error{background:#1a0505;border-color:#7f1d1d;color:#fca5a5}
 :is(.dark) .quick-stock-form__success{background:#052e16;border-color:#166534;color:#86efac}
+
+/* Material / Tabloid Consumptions Card */
+.material-card{border:1px solid #6366f1;border-radius:12px;padding:16px 20px;margin-top:16px;background:linear-gradient(135deg,#eef2ff 0%,#e0e7ff 100%);box-shadow:0 4px 16px rgba(99,102,241,0.08)}
+.material-card__header{display:flex;align-items:center;gap:12px;margin-bottom:14px;border-bottom:1px solid rgba(99,102,241,0.2);padding-bottom:10px}
+.material-card__icon{font-size:1.5rem}
+.material-card__title{font-weight:700;font-size:1rem;color:#3730a3}
+.material-card__sub{font-size:0.82rem;color:#4338ca}
+.material-card__body{display:flex;flex-direction:column;gap:12px}
+.material-item-row{background:#fff;border-radius:10px;padding:12px 16px;border:1px solid #c7d2fe;display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center}
+.material-item-prompt{display:flex;flex-direction:column;gap:2px}
+.material-item-label{font-weight:600;font-size:0.92rem;color:#1e1b4b}
+.material-item-hint{font-size:0.78rem;color:#6366f1}
+.material-item-input-wrap{display:flex;align-items:center;gap:6px}
+.material-qty-input{width:90px;font-weight:700;font-size:1rem;color:#3730a3;text-align:center;padding:6px 8px}
+.material-item-unit{font-size:0.82rem;font-weight:600;color:#4338ca}
+.material-item-stock-info{font-size:0.84rem;color:#475569;white-space:nowrap;padding-left:8px;border-left:1px solid #e0e7ff}
+.stock-sep{margin:0 4px;color:#94a3b8}
+.stock-result{font-weight:700;padding:2px 6px;border-radius:6px}
+.stock-result--ok{color:#15803d;background:#dcfce7}
+.stock-result--negative{color:#b91c1c;background:#fee2e2}
+.stock-missing{color:#b45309;font-weight:600;font-size:0.82rem}
+
+@media (max-width: 768px) {
+  .material-item-row{grid-template-columns:1fr;gap:8px}
+  .material-item-stock-info{border-left:none;padding-left:0;border-top:1px solid #e0e7ff;padding-top:6px}
+}
+
+:is(.dark) .material-card{background:linear-gradient(135deg,#0f172a 0%,#1e1b4b 100%);border-color:#6366f1}
+:is(.dark) .material-card__title{color:#a5b4fc}
+:is(.dark) .material-card__sub{color:#818cf8}
+:is(.dark) .material-item-row{background:#1e293b;border-color:#3730a3}
+:is(.dark) .material-item-label{color:#e0e7ff}
+:is(.dark) .material-item-hint{color:#a5b4fc}
+:is(.dark) .material-qty-input{color:#a5b4fc;background:#0f172a;border-color:#4338ca}
+:is(.dark) .material-item-unit{color:#a5b4fc}
+:is(.dark) .material-item-stock-info{color:#cbd5e1;border-left-color:#3730a3}
 </style>

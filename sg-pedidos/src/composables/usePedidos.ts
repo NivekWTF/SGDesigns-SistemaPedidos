@@ -82,29 +82,32 @@ async function crearPedido(input: CrearPedidoInput) {
       }
     }
 
-    // 2. Compute materials needed based on rules
-    const materialNeeds: Record<string, number> = {} // materialPattern -> total qty needed
-    for (const item of input.items) {
-      if (!item.producto_id) continue
-      const nombre = productNames[item.producto_id] || ''
-      const rules = getMaterialRules(nombre)
-      for (const rule of rules) {
-        const consumed = Math.ceil(item.cantidad / rule.unitsPerMaterial)
-        materialNeeds[rule.materialPattern] = (materialNeeds[rule.materialPattern] || 0) + consumed
+    // 2. Resolve final consumos list: use input.consumos if explicitly passed from UI, else compute from rules
+    let finalConsumos: Array<{ producto_id: string; cantidad: number }> = []
+    if (input.consumos && input.consumos.length > 0) {
+      finalConsumos = input.consumos
+    } else {
+      const materialNeeds: Record<string, number> = {} // materialPattern -> total qty needed
+      for (const item of input.items) {
+        if (!item.producto_id) continue
+        const nombre = productNames[item.producto_id] || ''
+        const rules = getMaterialRules(nombre)
+        for (const rule of rules) {
+          const consumed = Math.ceil(item.cantidad / rule.unitsPerMaterial)
+          materialNeeds[rule.materialPattern] = (materialNeeds[rule.materialPattern] || 0) + consumed
+        }
       }
-    }
 
-    // 3. Resolve material patterns to producto_ids
-    const consumos: Array<{ producto_id: string; cantidad: number }> = []
-    for (const [pattern, qty] of Object.entries(materialNeeds)) {
-      const { data: mats } = await supabase
-        .from('productos')
-        .select('id, nombre')
-        .ilike('nombre', '%' + pattern + '%')
-        .limit(1)
-      const material = mats?.[0]
-      if (material) {
-        consumos.push({ producto_id: material.id, cantidad: qty })
+      for (const [pattern, qty] of Object.entries(materialNeeds)) {
+        const { data: mats } = await supabase
+          .from('productos')
+          .select('id, nombre')
+          .ilike('nombre', '%' + pattern + '%')
+          .limit(1)
+        const material = mats?.[0]
+        if (material) {
+          finalConsumos.push({ producto_id: material.id, cantidad: qty })
+        }
       }
     }
 
@@ -113,7 +116,7 @@ async function crearPedido(input: CrearPedidoInput) {
       notas: input.notas ?? null,
       items: input.items,
       anticipo: input.anticipo ?? null,
-      consumos: consumos.length ? consumos : [],
+      consumos: finalConsumos.length ? finalConsumos : [],
       anticipo_metodo: input.anticipo_metodo ?? null
     })
 
@@ -505,14 +508,22 @@ async function registrarPago(pedidoId: string, monto: number, metodo: string) {
 }
 
 async function eliminarPedido(id: string) {
-  const { error } = await supabase
-    .from('pedidos')
-    .delete()
-    .eq('id', id)
+  errorMsg.value = null
+  // 1. Intentar eliminar a través de RPC delete_pedido_with_stock_rollback
+  const { error: rpcErr } = await supabase.rpc('delete_pedido_with_stock_rollback', { p_pedido_id: id })
 
-  if (error) {
-    errorMsg.value = (error as any)?.message ?? JSON.stringify(error)
-    throw error
+  if (rpcErr) {
+    // Si la RPC falla o no está creada aún, fallback a eliminación directa (el trigger en BD manejará el rollback)
+    console.warn('Falló RPC delete_pedido_with_stock_rollback, usando borrado directo:', rpcErr)
+    const { error: deleteErr } = await supabase
+      .from('pedidos')
+      .delete()
+      .eq('id', id)
+
+    if (deleteErr) {
+      errorMsg.value = (deleteErr as any)?.message ?? JSON.stringify(deleteErr)
+      throw deleteErr
+    }
   }
 
   pedidos.value = pedidos.value.filter(p => p.id !== id)

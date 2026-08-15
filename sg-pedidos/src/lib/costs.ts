@@ -82,6 +82,10 @@ const MATERIAL_RULE_ENTRIES: MaterialRuleEntry[] = [
     productPattern: 'tarjeta presentaci',
     rules: [{ materialPattern: 'tabloide couche grueso', unitsPerMaterial: 25 }],
   },
+  {
+    productPattern: 'esquela',
+    rules: [{ materialPattern: 'tabloide etiqueta', unitsPerMaterial: 9 }],
+  },
   // Add more entries as needed per business
 ]
 
