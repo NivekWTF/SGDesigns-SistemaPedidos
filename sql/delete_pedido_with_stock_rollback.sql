@@ -20,8 +20,7 @@ BEGIN
     -- Restaurar stock del producto principal si tiene producto_id
     IF item.producto_id IS NOT NULL THEN
       UPDATE public.productos
-      SET stock = COALESCE(stock, 0) + item.cantidad,
-          updated_at = now()
+      SET stock = COALESCE(stock, 0) + item.cantidad
       WHERE id = item.producto_id;
     END IF;
 
@@ -34,8 +33,7 @@ BEGIN
       SELECT id INTO v_mat_id FROM public.productos WHERE lower(nombre) LIKE '%tabloide couche grueso%' LIMIT 1;
       IF v_mat_id IS NOT NULL THEN
         UPDATE public.productos
-        SET stock = COALESCE(stock, 0) + v_consumed,
-            updated_at = now()
+        SET stock = COALESCE(stock, 0) + v_consumed
         WHERE id = v_mat_id;
       END IF;
 
@@ -45,8 +43,7 @@ BEGIN
       SELECT id INTO v_mat_id FROM public.productos WHERE lower(nombre) LIKE '%tabloide etiqueta%' LIMIT 1;
       IF v_mat_id IS NOT NULL THEN
         UPDATE public.productos
-        SET stock = COALESCE(stock, 0) + v_consumed,
-            updated_at = now()
+        SET stock = COALESCE(stock, 0) + v_consumed
         WHERE id = v_mat_id;
       END IF;
     END IF;
