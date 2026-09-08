@@ -5,16 +5,29 @@
       <div class="lc-header-icon">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 8h10M7 12h6"/></svg>
       </div>
-      <div>
+      <div class="lc-header-text">
         <h1 class="lc-title">Calculador de Etiquetas</h1>
         <p class="lc-subtitle">Calcula cuantas etiquetas caben en un tabloide</p>
       </div>
     </div>
 
+    <!-- ── MOBILE TABS ── -->
+    <div class="mobile-tabs">
+      <button class="mobile-tab" :class="{ active: mobileTab === 'controls' }" @click="mobileTab = 'controls'">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+        Configurar
+      </button>
+      <button class="mobile-tab" :class="{ active: mobileTab === 'preview' }" @click="mobileTab = 'preview'">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        Vista previa
+        <span v-if="total > 0" class="tab-badge">{{ total }}</span>
+      </button>
+    </div>
+
     <!-- ── MAIN LAYOUT ── -->
     <div class="lc-body">
       <!-- ── CONTROLS PANEL ── -->
-      <div class="controls-panel">
+      <div class="controls-panel" :class="{ 'mobile-hidden': mobileTab !== 'controls' }">
 
         <!-- Tamano de hoja -->
         <div class="section-block">
@@ -184,7 +197,7 @@
       </div>
 
       <!-- ── PREVIEW PANEL ── -->
-      <div class="preview-panel">
+      <div class="preview-panel" :class="{ 'mobile-hidden': mobileTab !== 'preview' }" ref="previewPanelRef">
         <div class="preview-header">
           <span class="preview-tag">Vista previa &mdash; {{ currentPaper.label }} {{ landscape ? 'Horizontal' : 'Vertical' }}</span>
           <span class="preview-dim">{{ pageW }}" x {{ pageH }}"</span>
@@ -211,7 +224,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+
+// Mobile tab state
+const mobileTab = ref<'controls'|'preview'>('controls')
 
 // Paper sizes
 interface PaperDef { id: string; label: string; wIn: number; hIn: number }
@@ -282,6 +298,8 @@ function generateGrid() {
   calculate()
   cells.value = Array.from({ length: cols.value * rows.value }, (_, i) => i)
   if (imageUrl.value) cellImage.value = imageUrl.value
+  // On mobile, switch to preview tab automatically
+  mobileTab.value = 'preview'
 }
 
 function clearGrid() {
@@ -300,12 +318,23 @@ function onFile(e: Event) {
   reader.readAsDataURL(f)
 }
 
-// Preview styles
-const MAX_PREVIEW_W = 820
+// Preview styles — dynamic width from container via ResizeObserver
+const previewPanelRef = ref<HTMLElement | null>(null)
+const containerWidth  = ref(820)
+let ro: ResizeObserver | null = null
+
+onMounted(() => {
+  ro = new ResizeObserver(entries => {
+    const w = entries[0]?.contentRect.width ?? 820
+    containerWidth.value = Math.max(200, w - 48) // subtract padding
+  })
+  if (previewPanelRef.value) ro.observe(previewPanelRef.value)
+})
+onBeforeUnmount(() => ro?.disconnect())
 
 const previewScale = computed(() => {
   const px = pageW.value * dpi.value
-  return Math.min(1, MAX_PREVIEW_W / px)
+  return Math.min(1, containerWidth.value / px)
 })
 
 const pageStyle = computed(() => ({
@@ -346,6 +375,8 @@ const cellStyle = computed(() => {
 </script>
 
 <style scoped>
+/* Auto-switch to preview tab after generate */
+
 /* Root & Header */
 .lc-root {
   display: flex;
@@ -375,6 +406,44 @@ const cellStyle = computed(() => {
 .lc-header-icon svg { width: 22px; height: 22px; }
 .lc-title { margin: 0; font-size: 1.25rem; font-weight: 700; color: #0f172a; }
 .lc-subtitle { margin: 2px 0 0; font-size: 0.83rem; color: #64748b; }
+
+/* Mobile tabs — hidden on desktop */
+.mobile-tabs {
+  display: none;
+  flex-shrink: 0;
+  background: #fff;
+  border-bottom: 1px solid #e2eaf0;
+  padding: 0 12px;
+  gap: 4px;
+}
+.mobile-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 8px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.15s, border-color 0.15s;
+}
+.mobile-tab svg { width: 15px; height: 15px; }
+.mobile-tab.active { color: #059669; border-bottom-color: #059669; }
+.tab-badge {
+  background: #059669;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 99px;
+  line-height: 1.4;
+}
 
 /* Body Layout */
 .lc-body {
@@ -641,7 +710,55 @@ const cellStyle = computed(() => {
 .preview-empty p { margin: 0; font-size: 0.9rem; text-align: center; max-width: 280px; }
 .preview-empty strong { color: #059669; }
 
+/* ── Responsive Mobile ───────────────────────────────────────────────────── */
+@media (max-width: 700px) {
+  .mobile-tabs { display: flex; }
+
+  .lc-header { padding: 12px 14px 10px; gap: 10px; }
+  .lc-header-icon { width: 34px; height: 34px; border-radius: 8px; }
+  .lc-header-icon svg { width: 18px; height: 18px; }
+  .lc-title { font-size: 1rem; }
+  .lc-subtitle { font-size: 0.75rem; }
+
+  .lc-body { flex-direction: column; overflow: visible; min-height: 0; }
+
+  .controls-panel {
+    width: 100%;
+    min-width: unset;
+    border-right: none;
+    border-bottom: 1px solid #e2eaf0;
+    overflow-y: visible;
+    max-height: none;
+    flex-shrink: 0;
+  }
+  .mobile-hidden { display: none !important; }
+
+  .preview-panel {
+    flex: unset;
+    min-height: 60vh;
+    width: 100%;
+  }
+
+  .preview-scroll {
+    min-height: 55vh;
+    padding: 16px 12px;
+    align-items: flex-start;
+  }
+
+  .four-col { grid-template-columns: 1fr 1fr; }
+
+  .actions-block { flex-direction: column; }
+  .btn-calc, .btn-clear { width: 100%; justify-content: center; }
+
+  .results-block { flex-wrap: wrap; }
+  .result-value { font-size: 1.2rem; }
+  .result-value.accent { font-size: 1.4rem; }
+}
+
 /* Dark Mode */
+:is(.dark) .mobile-tabs { background: #111c2e; border-color: #1e293b; }
+:is(.dark) .mobile-tab { color: #64748b; }
+:is(.dark) .mobile-tab.active { color: #34d399; border-bottom-color: #34d399; }
 :is(.dark) .lc-root { background: #0b1120; }
 :is(.dark) .lc-header { background: #111c2e; border-color: #1e293b; }
 :is(.dark) .lc-title { color: #e2e8f0; }
