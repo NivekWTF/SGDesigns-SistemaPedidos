@@ -15,7 +15,7 @@
     <template v-else>
     <section class="stats-grid">
       <div class="stat-card">
-        <div class="stat-num">{{ pedidos.length }}</div>
+        <div class="stat-num">{{ totalPedidosCount }}</div>
         <div class="stat-label">Total pedidos</div>
       </div>
 
@@ -356,6 +356,7 @@ const {
   pedidos,
   loading,
   errorMsg,
+  totalPedidosCount,
   fetchPedidos,
   fetchPedidoById,
   actualizarEstadoPedido,

@@ -6,12 +6,14 @@ import type { CrearPedidoInput, EstadoPedido, Pedido, PedidoItemInput } from '..
 const pedidos = ref<Pedido[]>([])
 const loading = ref(false)
 const errorMsg = ref<string | null>(null)
+const totalPedidosCount = ref<number>(0)
 const THERMAL_LOGO_MAX_WIDTH_PX = 384
 
 async function fetchPedidos() {
   loading.value = true
   errorMsg.value = null
 
+  // Fetch rows (Supabase/PostgREST defaults to 1000 rows max)
   const { data, error } = await supabase
     .from('pedidos')
     .select(`
@@ -32,6 +34,18 @@ async function fetchPedidos() {
     errorMsg.value = (error as any)?.message ?? JSON.stringify(error)
   } else {
     pedidos.value = (data as unknown as Pedido[]) || []
+  }
+
+  // Fetch the real total count separately (bypasses the 1000-row page limit)
+  const { count, error: countError } = await supabase
+    .from('pedidos')
+    .select('*', { count: 'exact', head: true })
+
+  if (!countError && count !== null) {
+    totalPedidosCount.value = count
+  } else {
+    // Fallback to local array length if count query fails
+    totalPedidosCount.value = pedidos.value.length
   }
 
   loading.value = false
@@ -573,6 +587,7 @@ export function usePedidos() {
     pedidos,
     loading,
     errorMsg,
+    totalPedidosCount,
     fetchPedidos,
     fetchPedidoById,
     crearPedido,

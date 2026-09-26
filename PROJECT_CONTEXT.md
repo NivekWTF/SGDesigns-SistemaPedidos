@@ -1,7 +1,7 @@
 # 🧠 Contexto del Proyecto — Sistema de Pedidos para Imprentas
 
-> Última actualización: 2026-08-09 21:56 (hora Pacífico)
-> Conversación: Se agregaron/separaron los KPIs en el Dashboard Gerencial para distinguir **Cobrado Hoy** (dinero real ingresado por pagos/anticipos) de **Pedidos Hoy** (monto total de pedidos creados).
+> Última actualización: 2026-09-25 18:47 (hora Pacífico)
+> Conversación: Migración del dominio caducado `kevinsg.site` al nuevo dominio `sgdesigns.site` (`https://pedidos.sgdesigns.site`). Se configuró Traefik en Dokploy, se resolvió el conflicto de router y se emitió el certificado SSL Let's Encrypt automáticamente.
 
 ---
 
