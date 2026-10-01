@@ -9,11 +9,130 @@ const errorMsg = ref<string | null>(null)
 const totalPedidosCount = ref<number>(0)
 const THERMAL_LOGO_MAX_WIDTH_PX = 384
 
+// ─── Server-side pagination params ────────────────────────────────────────────
+export interface FetchPedidosParams {
+  page: number
+  pageSize: number
+  search?: string
+  status?: string            // 'ALL' | EstadoPedido
+  startDate?: string | null  // YYYY-MM-DD
+  endDate?: string | null    // YYYY-MM-DD
+  onlyWithAnticipo?: boolean
+  onlyWithNotes?: boolean
+}
+
+/**
+ * Fetches a single page of pedidos from the DB applying all filters server-side.
+ * Updates the shared `pedidos` ref with the current page and `totalPedidosCount`
+ * with the exact filtered count.
+ */
+async function fetchPedidosPaginated(params: FetchPedidosParams) {
+  loading.value = true
+  errorMsg.value = null
+
+  const {
+    page,
+    pageSize,
+    search = '',
+    status = 'ALL',
+    startDate = null,
+    endDate = null,
+    onlyWithNotes = false,
+  } = params
+
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
+
+  const SELECT = `
+    id,
+    folio,
+    estado,
+    notas,
+    total,
+    created_at,
+    cliente_id,
+    clientes ( nombre ),
+    pedido_items ( id, producto_id, descripcion_personalizada, cantidad, precio_unitario, subtotal, productos ( nombre ) ),
+    pagos ( id, monto, metodo, referencia, creado_en, es_anticipo )
+  `
+
+  // ── Build data query ────────────────────────────────────────────────────────
+  let dataQuery = supabase
+    .from('pedidos')
+    .select(SELECT, { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(from, to)
+
+  // ── Build count query (same filters, head-only) ──────────────────────────────
+  let countQuery = supabase
+    .from('pedidos')
+    .select('*', { count: 'exact', head: true })
+
+  // Status filter
+  if (status && status !== 'ALL') {
+    dataQuery = dataQuery.eq('estado', status)
+    countQuery = countQuery.eq('estado', status)
+  }
+
+  // Date range filter — Supabase stores created_at as timestamptz
+  if (startDate) {
+    dataQuery = dataQuery.gte('created_at', `${startDate}T00:00:00`)
+    countQuery = countQuery.gte('created_at', `${startDate}T00:00:00`)
+  }
+  if (endDate) {
+    dataQuery = dataQuery.lte('created_at', `${endDate}T23:59:59`)
+    countQuery = countQuery.lte('created_at', `${endDate}T23:59:59`)
+  }
+
+  // Notes filter
+  if (onlyWithNotes) {
+    dataQuery = dataQuery.not('notas', 'is', null).neq('notas', '')
+    countQuery = countQuery.not('notas', 'is', null).neq('notas', '')
+  }
+
+  // Text search: match folio, or cliente nombre via ilike on folio/notas.
+  // Full-text on related tables is not directly filterable in PostgREST without
+  // a view/function, so we search folio and notes here; client still shows
+  // results for items/cliente via local filter after fetch.
+  if (search) {
+    const q = search.trim()
+    dataQuery = dataQuery.or(`folio.ilike.%${q}%,notas.ilike.%${q}%`)
+    countQuery = countQuery.or(`folio.ilike.%${q}%,notas.ilike.%${q}%`)
+  }
+
+  // Run both queries in parallel
+  const [{ data, error, count }, { count: totalCount, error: countError }] = await Promise.all([
+    dataQuery,
+    countQuery,
+  ])
+
+  if (error) {
+    errorMsg.value = (error as any)?.message ?? JSON.stringify(error)
+  } else {
+    pedidos.value = (data as unknown as Pedido[]) || []
+  }
+
+  // Use the count returned by the data query (same filters applied)
+  const resolvedCount = count ?? totalCount ?? pedidos.value.length
+  if (!countError && resolvedCount !== null) {
+    totalPedidosCount.value = resolvedCount
+  } else {
+    totalPedidosCount.value = pedidos.value.length
+  }
+
+  loading.value = false
+}
+
+/**
+ * Legacy full-fetch kept for internal use (crearPedido / actualizarPedidoCompleto
+ * call this to refresh the current page after a mutation). Components should
+ * call fetchPedidosPaginated instead.
+ * @internal
+ */
 async function fetchPedidos() {
   loading.value = true
   errorMsg.value = null
 
-  // Fetch rows (Supabase/PostgREST defaults to 1000 rows max)
   const { data, error } = await supabase
     .from('pedidos')
     .select(`
@@ -29,6 +148,7 @@ async function fetchPedidos() {
       pagos ( id, monto, metodo, referencia, creado_en, es_anticipo )
     `)
     .order('created_at', { ascending: false })
+    .range(0, 49) // limit to 50 most recent when called internally
 
   if (error) {
     errorMsg.value = (error as any)?.message ?? JSON.stringify(error)
@@ -36,7 +156,7 @@ async function fetchPedidos() {
     pedidos.value = (data as unknown as Pedido[]) || []
   }
 
-  // Fetch the real total count separately (bypasses the 1000-row page limit)
+  // Fetch the real total count separately
   const { count, error: countError } = await supabase
     .from('pedidos')
     .select('*', { count: 'exact', head: true })
@@ -44,7 +164,6 @@ async function fetchPedidos() {
   if (!countError && count !== null) {
     totalPedidosCount.value = count
   } else {
-    // Fallback to local array length if count query fails
     totalPedidosCount.value = pedidos.value.length
   }
 
@@ -589,6 +708,7 @@ export function usePedidos() {
     errorMsg,
     totalPedidosCount,
     fetchPedidos,
+    fetchPedidosPaginated,
     fetchPedidoById,
     crearPedido,
     actualizarPedidoCompleto,

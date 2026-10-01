@@ -335,7 +335,7 @@
           »
         </button>
 
-        <span class="page-info">{{ currentPage }} / {{ totalPages }} · {{ filteredPedidos.length }} pedidos</span>
+        <span class="page-info">{{ currentPage }} / {{ totalPages }} · {{ totalPedidosCount }} pedidos totales</span>
       </div>
     </section>
   </div>
@@ -358,6 +358,7 @@ const {
   errorMsg,
   totalPedidosCount,
   fetchPedidos,
+  fetchPedidosPaginated,
   fetchPedidoById,
   actualizarEstadoPedido,
   registrarPago,
@@ -457,67 +458,63 @@ async function confirmAnticipo() {
 }
 
 async function onPaymentUpdated() {
-  await fetchPedidos()
+  await doFetch()
 }
 
 function toggleMoreFilters(){ showMoreFilters.value = !showMoreFilters.value }
 
-const filteredPedidos = computed(() => {
-  const q = (searchTerm.value || '').toLowerCase().trim()
-
-  return pedidos.value.filter((p) => {
-    // text search
-    if (q) {
-      const idText = (p.folio || p.id || '').toString().toLowerCase()
-      const cliente = (p.clientes?.nombre || '').toLowerCase()
-      const desc = formatDescription(p).toLowerCase()
-      if (!idText.includes(q) && !cliente.includes(q) && !desc.includes(q)) return false
-    }
-
-    // status filter
-    if (statusFilter.value !== 'ALL' && p.estado !== statusFilter.value) return false
-
-    // date range filter (created_at)
-    if (startDate.value) {
-      const sd = parseLocalDate(startDate.value)
-      const created = p.created_at ? new Date(p.created_at) : null
-      if (!created || created < sd) return false
-    }
-    if (endDate.value) {
-      const ed = parseLocalDate(endDate.value, true)
-      const created = p.created_at ? new Date(p.created_at) : null
-      if (!created || created > ed) return false
-    }
-
-    // more filters
-    if (onlyWithAnticipo.value) {
-      const pagosArr = (p as any).pagos || []
-      const hasAnt = pagosArr.some((r:any) => !!r.es_anticipo || Number(r.monto) > 0)
-      if (!hasAnt) return false
-    }
-    if (onlyWithNotes.value) {
-      if (!p.notas || String(p.notas).trim() === '') return false
-    }
-
-    return true
-  })
-})
-
-// ── Pagination ──
+// ── Server-side pagination ───────────────────────────────────────────────────
 const PAGE_SIZE = 20
 const currentPage = ref(1)
 
-// Reset to page 1 whenever filters change
+/**
+ * Build params object from current UI state and call the paginated fetch.
+ */
+function doFetch() {
+  return fetchPedidosPaginated({
+    page: currentPage.value,
+    pageSize: PAGE_SIZE,
+    search: searchTerm.value || '',
+    status: statusFilter.value,
+    startDate: startDate.value,
+    endDate: endDate.value,
+    onlyWithNotes: onlyWithNotes.value,
+  })
+}
+
+// Reset to page 1 and refetch whenever filters change
 watch([searchTerm, statusFilter, startDate, endDate, onlyWithAnticipo, onlyWithNotes], () => {
   currentPage.value = 1
+  doFetch()
 })
 
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredPedidos.value.length / PAGE_SIZE)))
-
-const paginatedPedidos = computed(() => {
-  const start = (currentPage.value - 1) * PAGE_SIZE
-  return filteredPedidos.value.slice(start, start + PAGE_SIZE)
+// Refetch whenever page changes (without resetting to 1)
+watch(currentPage, () => {
+  doFetch()
 })
+
+// totalPages is driven by the server count
+const totalPages = computed(() => Math.max(1, Math.ceil(totalPedidosCount.value / PAGE_SIZE)))
+
+// pedidos is already the current page — no client-side slice needed.
+// We keep a light local filter only for the "cliente nombre" / item-desc search
+// that PostgREST cannot do without a custom view.
+const filteredPedidos = computed(() => {
+  const q = (searchTerm.value || '').toLowerCase().trim()
+  if (!q) return pedidos.value
+
+  // Narrow further: folio/notas already filtered by server; additionally
+  // match cliente name and item descriptions which come in the joined payload.
+  return pedidos.value.filter((p) => {
+    const idText = (p.folio || p.id || '').toString().toLowerCase()
+    const cliente = (p.clientes?.nombre || '').toLowerCase()
+    const desc = formatDescription(p).toLowerCase()
+    return idText.includes(q) || cliente.includes(q) || desc.includes(q)
+  })
+})
+
+// paginatedPedidos is just the (already paged) filteredPedidos — no extra slice.
+const paginatedPedidos = computed(() => filteredPedidos.value)
 
 function goToPage(page: number) {
   currentPage.value = Math.max(1, Math.min(page, totalPages.value))
@@ -573,7 +570,7 @@ function openNewOrder(){
 async function onNewCreated(){
   showNewOrder.value = false
   selectedPedido.value = null
-  await fetchPedidos()
+  await doFetch()
 }
 
 async function viewDetails(p: any) {
@@ -604,7 +601,8 @@ async function editPedido(p: any) {
 // removed createFormRef & scrollToForm; creation now handled in NewOrderForm component
 
 onMounted(async () => {
-  await fetchPedidos()
+  // Initial load: use server-side paginated fetch
+  await doFetch()
   await fetchProductos()
 })
 

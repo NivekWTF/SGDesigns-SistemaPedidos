@@ -1,7 +1,7 @@
 # 🧠 Contexto del Proyecto — Sistema de Pedidos para Imprentas
 
-> Última actualización: 2026-09-25 18:47 (hora Pacífico)
-> Conversación: Migración del dominio caducado `kevinsg.site` al nuevo dominio `sgdesigns.site` (`https://pedidos.sgdesigns.site`). Se configuró Traefik en Dokploy, se resolvió el conflicto de router y se emitió el certificado SSL Let's Encrypt automáticamente.
+> Última actualización: 2026-10-01 15:24 (hora Pacífico)
+> Conversación: Implementación de paginación real en la base de datos (server-side pagination). Se reemplazó el sistema de filtrado/paginación en cliente por queries con `.range()` y filtros en Supabase. Se crearon índices SQL para optimizar las búsquedas.
 
 ---
 
@@ -17,6 +17,7 @@
 | PDF | jsPDF + jspdf-autotable | `jspdf@4.2.1` |
 | QR | qrcode | `qrcode@1.5.4` |
 | Deploy | Docker + Nginx | `node:20-bullseye-slim` → `nginx:stable-alpine` |
+| Dominio activo | `https://pedidos.sgdesigns.site` | Traefik + Dokploy + Let's Encrypt |
 
 ---
 
@@ -27,8 +28,8 @@ SGDesigns-SistemaPedidos/
 ├── sg-pedidos/                    # ⭐ App principal (Vue 3 + Vite)
 │   ├── src/
 │   │   ├── components/            # 21 componentes Vue
-│   │   │   ├── HomeView.vue       # ⭐ ACTUALIZADO: Dashboard con 5 KPIs (Cobrado Hoy vs Pedidos Hoy)
-│   │   │   ├── PedidosView.vue    # Gestión de pedidos (45KB)
+│   │   │   ├── HomeView.vue       # Dashboard con 5 KPIs (Cobrado Hoy vs Pedidos Hoy)
+│   │   │   ├── PedidosView.vue    # ⭐ ACTUALIZADO: Usa paginación server-side (doFetch)
 │   │   │   ├── NewOrderWizard.vue # Wizard de nuevo pedido (52KB)
 │   │   │   ├── CajaView.vue       # Control de caja (19KB)
 │   │   │   ├── SettingsView.vue   # Panel de configuración
@@ -41,7 +42,7 @@ SGDesigns-SistemaPedidos/
 │   │   ├── composables/           # 12 composables
 │   │   │   ├── useAuth.ts         # Autenticación + RBAC
 │   │   │   ├── useBusinessConfig.ts # Config del negocio (BD + env fallback)
-│   │   │   ├── usePedidos.ts      # CRUD pedidos + tickets térmicos (20KB)
+│   │   │   ├── usePedidos.ts      # ⭐ ACTUALIZADO: fetchPedidosPaginated + server-side filters
 │   │   │   ├── useReportes.ts     # RPCs de reportes (ventas, ganancias, gastos)
 │   │   │   ├── useQuoteStore.ts   # Cotizador + PDF (white-labeled)
 │   │   │   ├── useCaja.ts         # Movimientos de caja
@@ -61,8 +62,9 @@ SGDesigns-SistemaPedidos/
 │   └── docker-compose.yml         # Docker deploy (12 build args)
 ├── landing/                       # Landing page de venta
 │   └── index.html                 # Página standalone de marketing
-├── sql/                           # 16 scripts SQL
+├── sql/                           # 20 scripts SQL
 │   ├── onboarding_complete.sql    # Script único de setup (~600 líneas)
+│   ├── add_pagination_indexes.sql # ⭐ NUEVO: Índices GIN + B-tree para paginación
 │   ├── create_business_config.sql # Tabla de configuración
 │   ├── report_sales_by_day.sql    # Actualizado: usa pagos.monto
 │   ├── report_sales_by_week.sql   # Actualizado: usa pagos.monto
@@ -103,12 +105,16 @@ SGDesigns-SistemaPedidos/
 - `landing/index.html`: Página de marketing responsive
 - Ruta `/configuracion` + enlace ⚙️ en sidebar
 - CSS variables dinámicas (`--brand-primary`, `--brand-accent`, etc.)
-- TypeScript: 0 errores
 
 **Fase 4 — Regla de negocio & KPIs en Dashboard:**
 - **5 RPCs SQL actualizadas**: `report_sales_by_day`, `report_sales_by_week`, `report_sales_by_month`, `report_profit_and_expenses`, `report_profit_and_expenses_weekly`.
-- **Nuevo KPI "Cobrado Hoy" en `HomeView.vue`**: Muestra `$0.00` si se crea un pedido sin anticipo/pago.
+- **Nuevo KPI "Cobrado Hoy"**: Muestra `$0.00` si se crea un pedido sin anticipo/pago.
 - **KPI "Pedidos Hoy"**: Muestra el valor contratado total de pedidos creados hoy.
+
+**Fase 5 — Paginación server-side: ✅ COMPLETADO (2026-10-01)**
+- `usePedidos.ts`: Nueva función `fetchPedidosPaginated(FetchPedidosParams)` con filtros en BD
+- `PedidosView.vue`: Migrado a `doFetch()` que llama la función paginada
+- `sql/add_pagination_indexes.sql`: Índices GIN trigram + B-tree creados
 
 ---
 
@@ -122,18 +128,109 @@ SGDesigns-SistemaPedidos/
 | CSS vars para colores | Se aplican en runtime sin rebuild; funciona con dark mode |
 | Reglas de costos como arrays | Más rápido que migrar a BD; futuro: tabla `material_rules` |
 | Landing page standalone HTML | No necesita framework; se puede hostear en cualquier lado |
-| **Separación de Cobrado vs Pedidos** | "Cobrado Hoy" mide el flujo real de dinero ingresado (pagos/anticipos). "Pedidos Hoy" mide el monto contratado generado hoy. |
+| **Separación de Cobrado vs Pedidos** | "Cobrado Hoy" mide el flujo real de dinero ingresado. "Pedidos Hoy" mide el monto contratado generado hoy. |
+| **Paginación server-side con .range()** | Evita traer todos los pedidos a memoria. Filtros de estado/fecha/notas van en la query de Supabase. Búsqueda por nombre de cliente/ítems se hace localmente sobre la página ya traída (PostgREST no puede filtrar en tablas relacionadas sin vista). |
+| **fetchPedidos() interno limitado a 50** | Mutations (crearPedido, actualizarPedidoCompleto) llaman fetchPedidos() internamente. Se limitó a 50 para no revertir la mejora de rendimiento. PedidosView siempre usa doFetch(). |
+
+---
+
+## Archivos Clave
+
+| Archivo | Qué hace |
+|---------|----------|
+| `sg-pedidos/src/composables/usePedidos.ts` | ⭐ CRUD pedidos. `fetchPedidosPaginated()` es la fn principal de carga. `fetchPedidos()` solo para uso interno en mutaciones. |
+| `sg-pedidos/src/components/PedidosView.vue` | Vista de pedidos. `doFetch()` construye params y llama fetchPedidosPaginated. Watchers en filtros + página disparan doFetch(). |
+| `sql/add_pagination_indexes.sql` | Índices para optimizar paginación. Ejecutar en Supabase SQL Editor. Incluye pg_trgm para ILIKE. |
+| `sg-pedidos/src/composables/useBusinessConfig.ts` | Singleton con config del negocio desde BD. Aplica CSS vars dinámicas. |
+| `sg-pedidos/src/components/SettingsView.vue` | Panel admin de configuración. Colores, logo, datos negocio. |
+| `sg-pedidos/src/components/HomeView.vue` | Dashboard con KPIs: Cobrado Hoy, Pedidos Hoy, Pendientes, etc. |
+| `sql/onboarding_complete.sql` | Setup completo para nuevo cliente (ejecutar una sola vez). |
+| `sg-pedidos/Dockerfile` | Multi-stage build con 12 ARGs para white-labeling. |
+
+---
+
+## Patrón de Paginación Server-Side (snippet clave)
+
+```typescript
+// En usePedidos.ts — Cómo funciona fetchPedidosPaginated
+export interface FetchPedidosParams {
+  page: number
+  pageSize: number
+  search?: string
+  status?: string          // 'ALL' | EstadoPedido
+  startDate?: string | null
+  endDate?: string | null
+  onlyWithAnticipo?: boolean
+  onlyWithNotes?: boolean
+}
+
+// Filtros aplicados en la query:
+// - status: .eq('estado', status)
+// - startDate/endDate: .gte/.lte('created_at', ...)
+// - onlyWithNotes: .not('notas', 'is', null).neq('notas', '')
+// - search: .or(`folio.ilike.%q%,notas.ilike.%q%`)
+// - paginación: .range(from, to)
+// - count exacto: select(SELECT, { count: 'exact' })
+
+// En PedidosView.vue — Cómo se llama
+function doFetch() {
+  return fetchPedidosPaginated({
+    page: currentPage.value,
+    pageSize: PAGE_SIZE, // 20
+    search: searchTerm.value || '',
+    status: statusFilter.value,
+    startDate: startDate.value,
+    endDate: endDate.value,
+    onlyWithNotes: onlyWithNotes.value,
+  })
+}
+// Watchers en filtros y currentPage llaman doFetch()
+// onNewCreated() y onPaymentUpdated() también llaman doFetch()
+```
+
+> ⚠️ **Limitación conocida**: La búsqueda por nombre de cliente (`clientes.nombre`) y descripciones de ítems (`pedido_items.descripcion_personalizada`) no se puede hacer en PostgREST filtrando tablas relacionadas directamente. El filtro de texto aplica `.or(folio.ilike, notas.ilike)` en la BD, y luego un filtro local adicional sobre los 20 registros traídos para cubrir cliente/ítems. Si se necesita búsqueda completa por cliente, crear una vista SQL o RPC.
+
+---
+
+## Variables de Entorno
+
+```env
+# sg-pedidos/.env.local
+VITE_SUPABASE_URL=https://xxx.supabase.co
+VITE_SUPABASE_ANON_KEY=xxx
+
+VITE_BUSINESS_NAME=SG Designs
+VITE_BUSINESS_ADDRESS=Dirección física
+VITE_BUSINESS_PHONE=Teléfono
+VITE_BUSINESS_SOCIALS=FB: @sgdesigns
+VITE_BUSINESS_LOGO_URL=/logo.png
+VITE_DEFAULT_BRAND_COLOR=#059669
+```
+
+---
+
+## Pendiente / Ideas futuras
+
+- 🟡 **Vista SQL para búsqueda completa**: Crear una vista `pedidos_search_view` que exponga `cliente_nombre` como columna propia para poder filtrar por nombre de cliente en la BD sin traer todo.
+- 🟡 **Ejecutar `add_pagination_indexes.sql`** en Supabase SQL Editor del cliente (aún no confirmado).
+- 🟢 **Búsqueda por nombre de cliente en BD**: Requiere vista SQL o RPC `search_pedidos(query text, ...)`.
+- 🟢 **Exportar pedidos filtrados a CSV/Excel**.
+- 🟢 **Notificaciones push / Realtime** cuando llega un pedido nuevo.
 
 ---
 
 ## Cómo Continuar
 
-1. **Para vender a un nuevo cliente:**
+1. **Ejecutar índices en producción:**
+   - Supabase → SQL Editor → pegar contenido de `sql/add_pagination_indexes.sql`
+   - Verificar: `SELECT indexname FROM pg_indexes WHERE tablename = 'pedidos';`
+
+2. **Para vender a un nuevo cliente:**
    - Crear proyecto en Supabase
    - Ejecutar `sql/onboarding_complete.sql` en SQL Editor
    - Copiar `.env.example` → `.env.local` y llenar Supabase URL + key
    - `npm install && npm run dev` o deploy con Docker
 
-2. **Si hay bugs:**
-   - `npx vue-tsc --noEmit` para verificar tipos
-   - El proyecto compila limpio a la fecha (2026-08-09)
+3. **Si hay bugs:**
+   - `npx vue-tsc --noEmit` para verificar tipos (compila limpio al 2026-10-01)
+   - El proyecto corre con `npm run dev` en `sg-pedidos/`
