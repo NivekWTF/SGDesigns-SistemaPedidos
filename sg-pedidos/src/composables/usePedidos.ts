@@ -7,7 +7,21 @@ const pedidos = ref<Pedido[]>([])
 const loading = ref(false)
 const errorMsg = ref<string | null>(null)
 const totalPedidosCount = ref<number>(0)
+// true when the search_pedidos RPC is available in Supabase;
+// false = fallback mode (client-side text filter on current page only)
+const rpcSearchAvailable = ref<boolean | null>(null) // null = not yet tested
 const THERMAL_LOGO_MAX_WIDTH_PX = 384
+
+/**
+ * Normalizes text for comparison: lowercase + remove diacritics (tildes).
+ * Allows "vinil con iman" to match "Vinil con Imán".
+ */
+function normalizeText(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // strip combining diacritics
+}
 
 // ─── Server-side pagination params ────────────────────────────────────────────
 export interface FetchPedidosParams {
@@ -40,6 +54,57 @@ async function fetchPedidosPaginated(params: FetchPedidosParams) {
     onlyWithNotes = false,
   } = params
 
+  const trimmedSearch = search.trim()
+
+  // ── When there is a search term, use the RPC that can filter on related tables
+  // (clientes.nombre, pedido_items.descripcion_personalizada) which PostgREST
+  // cannot do directly.
+  if (trimmedSearch) {
+    const { data: rpcData, error: rpcError } = await supabase.rpc('search_pedidos', {
+      p_search:     trimmedSearch,
+      p_status:     status || 'ALL',
+      p_start_date: startDate ?? null,
+      p_end_date:   endDate ?? null,
+      p_only_notes: onlyWithNotes,
+      p_page:       page,
+      p_page_size:  pageSize,
+    })
+
+    if (rpcError) {
+      // Fallback: if RPC not yet deployed, fall back to client-side text filter
+      rpcSearchAvailable.value = false
+      console.warn('[search_pedidos] RPC no disponible, usando fallback con filtro local:', rpcError.message)
+      await _fetchPedidosFallback(params)
+    } else {
+      // supabase.rpc() with OUT params can return either:
+      //   - A single object: { result: [...], total: N }
+      //   - An array with one object: [{ result: [...], total: N }]
+      // Normalize both cases.
+      const raw = rpcData as any
+      const payload: { result: any; total: any } | null =
+        Array.isArray(raw) ? (raw[0] ?? null) : raw
+
+      if (!payload) {
+        pedidos.value = []
+        totalPedidosCount.value = 0
+      } else {
+        // `result` is a JSON column — may already be parsed or still a string
+        const resultData = typeof payload.result === 'string'
+          ? JSON.parse(payload.result)
+          : (payload.result ?? [])
+
+        pedidos.value = (Array.isArray(resultData) ? resultData : []) as Pedido[]
+        totalPedidosCount.value = Number(payload.total ?? pedidos.value.length)
+
+        rpcSearchAvailable.value = true
+      }
+    }
+
+    loading.value = false
+    return
+  }
+
+  // ── No search term: use the fast direct PostgREST query with .range() ────────
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1
 
@@ -56,71 +121,120 @@ async function fetchPedidosPaginated(params: FetchPedidosParams) {
     pagos ( id, monto, metodo, referencia, creado_en, es_anticipo )
   `
 
-  // ── Build data query ────────────────────────────────────────────────────────
   let dataQuery = supabase
     .from('pedidos')
     .select(SELECT, { count: 'exact' })
     .order('created_at', { ascending: false })
     .range(from, to)
 
-  // ── Build count query (same filters, head-only) ──────────────────────────────
-  let countQuery = supabase
-    .from('pedidos')
-    .select('*', { count: 'exact', head: true })
-
-  // Status filter
   if (status && status !== 'ALL') {
     dataQuery = dataQuery.eq('estado', status)
-    countQuery = countQuery.eq('estado', status)
   }
 
-  // Date range filter — Supabase stores created_at as timestamptz
   if (startDate) {
     dataQuery = dataQuery.gte('created_at', `${startDate}T00:00:00`)
-    countQuery = countQuery.gte('created_at', `${startDate}T00:00:00`)
   }
   if (endDate) {
     dataQuery = dataQuery.lte('created_at', `${endDate}T23:59:59`)
-    countQuery = countQuery.lte('created_at', `${endDate}T23:59:59`)
   }
 
-  // Notes filter
   if (onlyWithNotes) {
     dataQuery = dataQuery.not('notas', 'is', null).neq('notas', '')
-    countQuery = countQuery.not('notas', 'is', null).neq('notas', '')
   }
 
-  // Text search: match folio, or cliente nombre via ilike on folio/notas.
-  // Full-text on related tables is not directly filterable in PostgREST without
-  // a view/function, so we search folio and notes here; client still shows
-  // results for items/cliente via local filter after fetch.
-  if (search) {
-    const q = search.trim()
-    dataQuery = dataQuery.or(`folio.ilike.%${q}%,notas.ilike.%${q}%`)
-    countQuery = countQuery.or(`folio.ilike.%${q}%,notas.ilike.%${q}%`)
-  }
-
-  // Run both queries in parallel
-  const [{ data, error, count }, { count: totalCount, error: countError }] = await Promise.all([
-    dataQuery,
-    countQuery,
-  ])
+  const { data, error, count } = await dataQuery
 
   if (error) {
     errorMsg.value = (error as any)?.message ?? JSON.stringify(error)
   } else {
     pedidos.value = (data as unknown as Pedido[]) || []
-  }
-
-  // Use the count returned by the data query (same filters applied)
-  const resolvedCount = count ?? totalCount ?? pedidos.value.length
-  if (!countError && resolvedCount !== null) {
-    totalPedidosCount.value = resolvedCount
-  } else {
-    totalPedidosCount.value = pedidos.value.length
+    totalPedidosCount.value = count ?? pedidos.value.length
   }
 
   loading.value = false
+}
+
+/**
+ * Fallback used when the search_pedidos RPC is not yet deployed in Supabase.
+ *
+ * Strategy: fetch a LARGER page without any server-side text filter (so we
+ * include pedidos matching by item description or client name), then apply
+ * the text filter client-side on the returned data.
+ *
+ * Limitation: total count and pagination will be approximate when searching
+ * (the count reflects the non-text-filtered total). This is acceptable until
+ * the RPC is deployed.
+ * @internal
+ */
+async function _fetchPedidosFallback(params: FetchPedidosParams) {
+  const {
+    page,
+    pageSize,
+    search = '',
+    status = 'ALL',
+    startDate = null,
+    endDate = null,
+    onlyWithNotes = false
+  } = params
+
+  // Fetch a wider slice so the client-side filter has enough records to search across.
+  // When searching, fetch up to 300 recent records.
+  const isSearching = Boolean(search.trim())
+  const from = isSearching ? 0 : (page - 1) * pageSize
+  const to = isSearching ? 299 : from + pageSize - 1
+
+  const SELECT = `
+    id, folio, estado, notas, total, created_at, cliente_id,
+    clientes ( nombre ),
+    pedido_items ( id, producto_id, descripcion_personalizada, cantidad, precio_unitario, subtotal, productos ( nombre ) ),
+    pagos ( id, monto, metodo, referencia, creado_en, es_anticipo )
+  `
+
+  let q = supabase
+    .from('pedidos')
+    .select(SELECT, { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(from, to)
+
+  if (status && status !== 'ALL') q = q.eq('estado', status)
+  if (startDate) q = q.gte('created_at', `${startDate}T00:00:00`)
+  if (endDate)   q = q.lte('created_at', `${endDate}T23:59:59`)
+  if (onlyWithNotes) q = q.not('notas', 'is', null).neq('notas', '')
+
+  const { data, error, count } = await q
+  if (error) {
+    errorMsg.value = (error as any)?.message ?? JSON.stringify(error)
+    return
+  }
+
+  const allRows = (data as unknown as Pedido[]) || []
+
+  // Client-side text filter with accent/case normalization and multi-word support
+  const q_normalized = normalizeText(search.trim())
+  const searchWords = q_normalized ? q_normalized.split(/\s+/).filter(Boolean) : []
+
+  const filtered = searchWords.length > 0
+    ? allRows.filter((p: any) => {
+        const folio  = normalizeText(p.folio || p.id || '')
+        const notas  = normalizeText(p.notas || '')
+        const client = normalizeText(p.clientes?.nombre || '')
+        const items  = (p.pedido_items || []).map((it: any) =>
+          normalizeText(
+            `${it.descripcion_personalizada || ''} ${it.productos?.nombre || ''}`
+          )
+        ).join(' ')
+        const fullOrderText = `${folio} ${notas} ${client} ${items}`
+        return searchWords.every((word: string) => fullOrderText.includes(word))
+      })
+    : allRows
+
+  const pageOffset = (page - 1) * pageSize
+  pedidos.value = isSearching
+    ? filtered.slice(pageOffset, pageOffset + pageSize)
+    : filtered
+  totalPedidosCount.value = isSearching
+    ? filtered.length
+    : (count ?? allRows.length)
 }
 
 /**
@@ -707,6 +821,7 @@ export function usePedidos() {
     loading,
     errorMsg,
     totalPedidosCount,
+    rpcSearchAvailable,
     fetchPedidos,
     fetchPedidosPaginated,
     fetchPedidoById,

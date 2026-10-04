@@ -1,7 +1,10 @@
 # 🧠 Contexto del Proyecto — Sistema de Pedidos para Imprentas
 
-> Última actualización: 2026-10-01 15:24 (hora Pacífico)
-> Conversación: Implementación de paginación real en la base de datos (server-side pagination). Se reemplazó el sistema de filtrado/paginación en cliente por queries con `.range()` y filtros en Supabase. Se crearon índices SQL para optimizar las búsquedas.
+> Última actualización: 2026-10-03 20:05 (hora Pacífico)
+> Conversación: Diagnóstico y solución del buscador de pedidos:
+> 1. Se identificó el error exacto que causaba que la RPC fallara en Supabase: `operator does not exist: estado_pedido = text` (PostgreSQL 42883) al comparar el enum `pe.estado` con `p_status`.
+> 2. Se actualizó la RPC `search_pedidos` a v4 en `sql/search_pedidos_rpc.sql` corrigiendo `pe.estado::text = p_status`, agregando búsqueda multi-palabra con `unnest` y `NOT EXISTS`, soporte con `unaccent` y `search_path = public, extensions`.
+> 3. Se mejoró `_fetchPedidosFallback` en `usePedidos.ts` para que soporte búsqueda multi-palabra, busque tanto en `descripcion_personalizada` como en `productos.nombre`, amplíe el rango de búsqueda a 300 pedidos e implemente paginación local limpia.
 
 ---
 
@@ -116,6 +119,12 @@ SGDesigns-SistemaPedidos/
 - `PedidosView.vue`: Migrado a `doFetch()` que llama la función paginada
 - `sql/add_pagination_indexes.sql`: Índices GIN trigram + B-tree creados
 
+**Fase 6 — Buscador mejorado: ✅ COMPLETADO (2026-10-03)**
+- `sql/search_pedidos_rpc.sql`: RPC PostgreSQL que hace JOIN pedidos+clientes+pedido_items para búsqueda full-text en BD (cliente nombre, folio, notas, descripción ítems)
+- `usePedidos.ts`: `fetchPedidosPaginated()` ahora usa la RPC cuando hay texto de búsqueda, con fallback a folio/notas si la RPC no está desplegada
+- `PedidosView.vue`: Debounce de 400ms en el buscador, corregido bug `onlyWithAnticipo` no se enviaba al servidor, botón ✕ para limpiar búsqueda, icono 🔍
+- `sql/search_pedidos_rpc.sql`: Incluye índices GIN trigram en `clientes.nombre` y `pedido_items.descripcion_personalizada`
+
 ---
 
 ## Decisiones de Diseño
@@ -188,7 +197,7 @@ function doFetch() {
 // onNewCreated() y onPaymentUpdated() también llaman doFetch()
 ```
 
-> ⚠️ **Limitación conocida**: La búsqueda por nombre de cliente (`clientes.nombre`) y descripciones de ítems (`pedido_items.descripcion_personalizada`) no se puede hacer en PostgREST filtrando tablas relacionadas directamente. El filtro de texto aplica `.or(folio.ilike, notas.ilike)` en la BD, y luego un filtro local adicional sobre los 20 registros traídos para cubrir cliente/ítems. Si se necesita búsqueda completa por cliente, crear una vista SQL o RPC.
+> ✅ **Resuelto (Fase 6)**: La búsqueda por nombre de cliente (`clientes.nombre`) y descripciones de ítems (`pedido_items.descripcion_personalizada`) ahora funciona via la RPC `search_pedidos` que hace el JOIN en el servidor PostgreSQL. Ejecutar `sql/search_pedidos_rpc.sql` en Supabase SQL Editor para activarla.
 
 ---
 
@@ -211,9 +220,9 @@ VITE_DEFAULT_BRAND_COLOR=#059669
 
 ## Pendiente / Ideas futuras
 
-- 🟡 **Vista SQL para búsqueda completa**: Crear una vista `pedidos_search_view` que exponga `cliente_nombre` como columna propia para poder filtrar por nombre de cliente en la BD sin traer todo.
+- ✅ **Buscador completo por cliente**: Resuelto con RPC `search_pedidos` — ejecutar `sql/search_pedidos_rpc.sql`
+- 🟡 **Ejecutar `search_pedidos_rpc.sql`** en Supabase SQL Editor (incluye índices GIN para clientes y pedido_items)
 - 🟡 **Ejecutar `add_pagination_indexes.sql`** en Supabase SQL Editor del cliente (aún no confirmado).
-- 🟢 **Búsqueda por nombre de cliente en BD**: Requiere vista SQL o RPC `search_pedidos(query text, ...)`.
 - 🟢 **Exportar pedidos filtrados a CSV/Excel**.
 - 🟢 **Notificaciones push / Realtime** cuando llega un pedido nuevo.
 

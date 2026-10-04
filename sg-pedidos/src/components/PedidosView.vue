@@ -134,7 +134,21 @@
       <div class="list-controls">
         <div class="filters-row">
           <div class="search">
-            <input v-model="searchTerm" placeholder="Buscar por nombre, ID, descripción..." />
+            <div class="search-input-wrap">
+              <span class="search-icon">🔍</span>
+              <input
+                v-model="searchTerm"
+                placeholder="Buscar por cliente, folio, descripción..."
+                id="pedidos-search"
+              />
+              <button v-if="searchTerm" class="search-clear-btn" @click="clearSearch" title="Limpiar búsqueda">✕</button>
+              <span v-if="loading && debouncedSearch" class="search-loading">⏳</span>
+            </div>
+            <!-- Aviso cuando la búsqueda completa (RPC) no está disponible -->
+            <div v-if="debouncedSearch && rpcSearchAvailable === false" class="search-limited-notice">
+              ⚠️ Búsqueda limitada a la página actual. Para búsqueda completa, ejecuta
+              <code>search_pedidos_rpc.sql</code> en Supabase.
+            </div>
           </div>
 
           <div class="status-select-wrap">
@@ -357,6 +371,7 @@ const {
   loading,
   errorMsg,
   totalPedidosCount,
+  rpcSearchAvailable,
   fetchPedidos,
   fetchPedidosPaginated,
   fetchPedidoById,
@@ -374,6 +389,21 @@ const { formatDateOnly, formatCurrency } = useFormat()
 
 // UI state
 const searchTerm = ref('')
+// Debounced search: only updates after 400ms of inactivity to avoid firing
+// a DB request on every keystroke.
+const debouncedSearch = ref('')
+let _searchTimer: ReturnType<typeof setTimeout> | null = null
+watch(searchTerm, (val) => {
+  if (_searchTimer) clearTimeout(_searchTimer)
+  _searchTimer = setTimeout(() => {
+    debouncedSearch.value = val
+  }, 400)
+})
+function clearSearch() {
+  searchTerm.value = ''
+  debouncedSearch.value = ''
+}
+
 const openMenuId = ref<string | null>(null)
 
 // modal state for new order
@@ -474,16 +504,18 @@ function doFetch() {
   return fetchPedidosPaginated({
     page: currentPage.value,
     pageSize: PAGE_SIZE,
-    search: searchTerm.value || '',
+    search: debouncedSearch.value || '',
     status: statusFilter.value,
     startDate: startDate.value,
     endDate: endDate.value,
+    onlyWithAnticipo: onlyWithAnticipo.value,
     onlyWithNotes: onlyWithNotes.value,
   })
 }
 
 // Reset to page 1 and refetch whenever filters change
-watch([searchTerm, statusFilter, startDate, endDate, onlyWithAnticipo, onlyWithNotes], () => {
+// Note: use debouncedSearch (not searchTerm) so we don't fire on every keystroke
+watch([debouncedSearch, statusFilter, startDate, endDate, onlyWithAnticipo, onlyWithNotes], () => {
   currentPage.value = 1
   doFetch()
 })
@@ -496,25 +528,10 @@ watch(currentPage, () => {
 // totalPages is driven by the server count
 const totalPages = computed(() => Math.max(1, Math.ceil(totalPedidosCount.value / PAGE_SIZE)))
 
-// pedidos is already the current page — no client-side slice needed.
-// We keep a light local filter only for the "cliente nombre" / item-desc search
-// that PostgREST cannot do without a custom view.
-const filteredPedidos = computed(() => {
-  const q = (searchTerm.value || '').toLowerCase().trim()
-  if (!q) return pedidos.value
-
-  // Narrow further: folio/notas already filtered by server; additionally
-  // match cliente name and item descriptions which come in the joined payload.
-  return pedidos.value.filter((p) => {
-    const idText = (p.folio || p.id || '').toString().toLowerCase()
-    const cliente = (p.clientes?.nombre || '').toLowerCase()
-    const desc = formatDescription(p).toLowerCase()
-    return idText.includes(q) || cliente.includes(q) || desc.includes(q)
-  })
-})
-
-// paginatedPedidos is just the (already paged) filteredPedidos — no extra slice.
-const paginatedPedidos = computed(() => filteredPedidos.value)
+// pedidos is the current page returned by the server.
+// The search_pedidos RPC already filters by cliente nombre and item descriptions
+// on the server side, so no additional client-side filtering is needed.
+const paginatedPedidos = computed(() => pedidos.value)
 
 function goToPage(page: number) {
   currentPage.value = Math.max(1, Math.min(page, totalPages.value))
@@ -736,8 +753,15 @@ async function borrar(id: string) {
 .list-controls { display:flex; gap:12px; align-items:center; margin-top:16px; margin-bottom:16px; justify-content:space-between; flex-wrap:wrap; }
 .filters-row { display:flex; gap:12px; align-items:center; flex:1; flex-wrap:wrap; }
 .search { flex: 1; min-width: 250px; }
-.search input { width:100%;padding:10px 14px;border:1px solid #cbd5e1;border-radius:8px;box-sizing:border-box;font-size:0.95rem;transition:border-color 0.2s }
-.search input:focus { outline:none; border-color:#059669; box-shadow:0 0 0 3px rgba(5,150,105,0.1) }
+.search-input-wrap { position:relative; display:flex; align-items:center; }
+.search-input-wrap input { width:100%;padding:10px 14px 10px 36px;border:1px solid #cbd5e1;border-radius:8px;box-sizing:border-box;font-size:0.95rem;transition:border-color 0.2s }
+.search-input-wrap input:focus { outline:none; border-color:#059669; box-shadow:0 0 0 3px rgba(5,150,105,0.1) }
+.search-icon { position:absolute; left:10px; font-size:0.9rem; pointer-events:none; opacity:0.5; z-index:1; }
+.search-clear-btn { position:absolute; right:8px; background:none; border:none; cursor:pointer; color:#94a3b8; font-size:0.85rem; padding:2px 6px; border-radius:4px; line-height:1; transition:color 0.2s; }
+.search-clear-btn:hover { color:#ef4444; }
+.search-loading { position:absolute; right:8px; font-size:0.85rem; }
+.search-limited-notice { margin-top:6px; padding:6px 10px; background:#fffbeb; border:1px solid #fcd34d; border-radius:6px; font-size:0.8rem; color:#92400e; line-height:1.4; }
+.search-limited-notice code { font-family:monospace; background:#fef3c7; padding:1px 4px; border-radius:3px; }
 .status-select-wrap { min-width: 150px; }
 .status-select-wrap select { width:100%;padding:10px 14px;border:1px solid #cbd5e1;border-radius:8px;font-size:0.95rem;background:#fff }
 .date-filters { display:flex; gap:8px; align-items:center; }
